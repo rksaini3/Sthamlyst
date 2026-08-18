@@ -19,6 +19,12 @@ export default function Home() {
         >
           🛍️ Local Bazaar
         </Link>
+        <Link
+          href="/profile"
+          className="block w-full border border-amber-300 text-amber-800 font-semibold py-3.5 rounded-xl"
+        >
+          👤 My Profile
+        </Link>
       </div>
 
       <p className="text-xs text-stone-400 mt-10">Pilot: Gonda, Uttar Pradesh</p>
