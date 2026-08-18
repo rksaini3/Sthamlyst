@@ -54,18 +54,38 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="p-6 text-center text-stone-500">
-        Please sign in to view your profile.
+      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-4xl mb-3">👤</p>
+        <h1 className="text-lg font-bold text-stone-900">You&apos;re not signed in</h1>
+        <p className="text-sm text-stone-500 mt-2 mb-6">
+          Sign in to earn points, upload reels, and list your products.
+        </p>
+        <Link
+          href="/login"
+          className="w-full max-w-xs bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm"
+        >
+          Sign In
+        </Link>
       </div>
     )
   }
 
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
-      <h1 className="text-xl font-bold text-amber-900">
-        {profile.full_name || 'Your Profile'}
-      </h1>
-      <p className="text-sm text-stone-500">{profile.city}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-amber-900">
+            {profile.full_name || 'Your Profile'}
+          </h1>
+          <p className="text-sm text-stone-500">{profile.city}</p>
+        </div>
+        <button
+          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
+          className="text-xs font-semibold text-stone-500 border border-stone-300 rounded-full px-3 py-1.5"
+        >
+          Sign Out
+        </button>
+      </div>
 
       <div className="mt-4 bg-amber-600 text-white rounded-2xl p-4 flex items-center justify-between">
         <span className="font-semibold">Sthamly Points</span>
