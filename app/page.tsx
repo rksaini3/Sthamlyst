@@ -25,6 +25,12 @@ export default function Home() {
         >
           👤 My Profile
         </Link>
+        <Link
+          href="/chat"
+          className="block w-full border border-stone-300 text-stone-700 font-semibold py-3.5 rounded-xl"
+        >
+          💬 Chats
+        </Link>
       </div>
 
       <p className="text-xs text-stone-400 mt-10">Pilot: Gonda, Uttar Pradesh</p>
