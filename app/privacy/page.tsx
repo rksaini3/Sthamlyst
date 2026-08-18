@@ -33,11 +33,28 @@ export default function PrivacyPage() {
         We do not sell your personal data to third parties.
       </Section>
 
-      <Section title="3. Where Your Data Is Stored">
+      <Section title="3. Where Your Data Is Stored (Cross-Border Transfer)">
         Sthamly is built on <strong>Supabase</strong> (database, authentication, file storage) and
         hosted on <strong>Vercel</strong>. These providers may store data on servers outside
-        India as part of their infrastructure. By using Sthamly, you consent to this transfer,
-        which is necessary to provide the service.
+        India as part of their global cloud infrastructure. Under India&apos;s{' '}
+        <strong>Digital Personal Data Protection Act, 2023 (DPDP Act)</strong>, this is permitted
+        for all countries except those specifically restricted by the Government of India — we
+        do not currently use any restricted-country infrastructure. By using Sthamly, you
+        consent to this transfer, which is necessary to provide the service.
+      </Section>
+
+      <Section title="3A. Consent &amp; Data Minimisation">
+        In line with the DPDP Act, we ask for your clear consent — in simple Hindi/English — at
+        sign-up before collecting your name, email, or city. We only collect data that is
+        strictly necessary to run the Learn &amp; Earn and Local Bazaar features (data
+        minimisation); we do not ask for information we don&apos;t need to operate the Platform.
+      </Section>
+
+      <Section title="3B. Payments Are Not Held by Sthamly">
+        Sthamly does not process or hold payments — any amount agreed between a buyer and seller
+        is settled directly between them (e.g. UPI, cash, QR code), outside the app. Because
+        Sthamly never holds customer funds, RBI's in-app payment localisation/aggregator rules do
+        not apply to the Platform in its current form.
       </Section>
 
       <Section title="4. Chat Data">
@@ -82,6 +99,12 @@ export default function PrivacyPage() {
           Grievance Officer, Sthamly<br />
           Gonda, Uttar Pradesh, India<br />
           Email: <span className="text-amber-700">[add your contact email here]</span>
+        </p>
+        <p className="mt-2 text-xs text-stone-500">
+          As an early-stage platform, Sthamly currently qualifies for the DPDP Act&apos;s Section
+          17 relaxations available to startups (e.g. simplified compliance obligations). We will
+          appoint a formal Data Protection Officer if and when required by law as the Platform
+          grows.
         </p>
       </Section>
 
