@@ -8,6 +8,7 @@ type Profile = {
   full_name: string | null
   city: string | null
   sthamly_points: number
+  total_saved_rupees: number
   is_seller: boolean
   is_creator: boolean
   seller_verified: boolean
@@ -31,7 +32,7 @@ export default function ProfilePage() {
     }
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, city, sthamly_points, is_seller, is_creator, seller_verified, skill_badges')
+      .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
       .eq('id', userData.user.id)
       .single()
     if (data) setProfile(data as Profile)
@@ -87,7 +88,12 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <div className="mt-4 bg-amber-600 text-white rounded-2xl p-4 flex items-center justify-between">
+      <div className="mt-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl p-4">
+        <span className="text-xs font-medium opacity-90">Total Saved via Learning</span>
+        <p className="text-3xl font-extrabold mt-0.5">₹{profile.total_saved_rupees.toFixed(0)}</p>
+      </div>
+
+      <div className="mt-3 bg-amber-600 text-white rounded-2xl p-4 flex items-center justify-between">
         <span className="font-semibold">Sthamly Points</span>
         <span className="text-2xl font-extrabold">🪙 {profile.sthamly_points}</span>
       </div>
