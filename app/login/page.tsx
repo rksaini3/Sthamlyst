@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
@@ -82,6 +83,11 @@ export default function LoginPage() {
 
       <p className="text-[11px] text-stone-400 mt-6 text-center">
         No password needed — we&apos;ll email you a one-tap sign-in link.
+      </p>
+      <p className="text-[11px] text-stone-400 mt-2 text-center">
+        By continuing, you agree to our{' '}
+        <Link href="/terms" className="text-amber-700 underline">Terms</Link> &amp;{' '}
+        <Link href="/privacy" className="text-amber-700 underline">Privacy Policy</Link>.
       </p>
     </div>
   )
