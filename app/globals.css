@@ -3,5 +3,13 @@
 @tailwind utilities;
 
 html, body {
-  background-color: #fffbeb; /* amber-50 */
+  background-color: #ffffff;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
