@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 export default function SellPage() {
+  const { user } = useAuth()
   const router = useRouter()
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
@@ -23,14 +25,14 @@ export default function SellPage() {
     }
     setUploading(true)
 
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) {
+    if (!user) {
       setError('Pehle sign in karo.')
       setUploading(false)
+      router.push('/login')
       return
     }
 
-    const filePath = `${userData.user.id}/${Date.now()}-${imageFile.name}`
+    const filePath = `${user.id}/${Date.now()}-${imageFile.name}`
     const { error: uploadError } = await supabase.storage.from('products').upload(filePath, imageFile)
     if (uploadError) {
       setError('Image upload fail: ' + uploadError.message)

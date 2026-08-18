@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 type MyProduct = { id: string; title: string }
 
 export default function UploadReelPage() {
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
@@ -24,17 +26,16 @@ export default function UploadReelPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (authLoading || !user) return
     async function loadMyProducts() {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) return
       const { data } = await supabase
         .from('products')
         .select('id, title')
-        .eq('maker_id', userData.user.id)
+        .eq('maker_id', user!.id)
       if (data) setMyProducts(data as MyProduct[])
     }
     loadMyProducts()
-  }, [])
+  }, [authLoading, user])
 
   async function handleSubmit() {
     setError('')
@@ -44,14 +45,14 @@ export default function UploadReelPage() {
     }
     setUploading(true)
 
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) {
+    if (!user) {
       setError('Pehle sign in karo.')
       setUploading(false)
+      router.push('/login')
       return
     }
 
-    const filePath = `${userData.user.id}/${Date.now()}-${videoFile.name}`
+    const filePath = `${user.id}/${Date.now()}-${videoFile.name}`
     const { error: uploadError } = await supabase.storage.from('reels').upload(filePath, videoFile)
     if (uploadError) {
       setError('Video upload fail: ' + uploadError.message)

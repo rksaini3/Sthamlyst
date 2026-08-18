@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
+import { AuthProvider } from '@/lib/AuthProvider'
 
 export const metadata: Metadata = {
   title: 'Sthamly — Learn & Earn',
@@ -31,8 +32,10 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="min-h-screen bg-white">
-        {children}
-        <BottomNav />
+        <AuthProvider>
+          {children}
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   )

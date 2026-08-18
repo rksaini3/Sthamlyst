@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 import { ArrowLeft, Camera, Image as ImageIcon, Mic, Send, Square } from 'lucide-react'
 
 type Message = {
@@ -21,10 +22,12 @@ type ProductInfo = { title: string; price: number; image_url: string | null }
 
 export default function ChatThreadPage() {
   const params = useParams()
+  const router = useRouter()
   const conversationId = params.id as string
+  const { user, loading: authLoading } = useAuth()
+  const myId = user?.id ?? null
 
   const [messages, setMessages] = useState<Message[]>([])
-  const [myId, setMyId] = useState<string | null>(null)
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null)
   const [product, setProduct] = useState<ProductInfo | null>(null)
   const [text, setText] = useState('')
@@ -40,10 +43,13 @@ export default function ChatThreadPage() {
   const audioChunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
+    if (authLoading) return
+    if (!myId) {
+      setLoading(false)
+      return
+    }
     async function load() {
-      const { data: userData } = await supabase.auth.getUser()
-      const uid = userData?.user?.id ?? null
-      setMyId(uid)
+      const uid = myId
 
       const { data: conv } = await supabase
         .from('conversations')
@@ -87,7 +93,7 @@ export default function ChatThreadPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [conversationId])
+  }, [conversationId, authLoading, myId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -150,7 +156,18 @@ export default function ChatThreadPage() {
     setRecording(false)
   }
 
-  if (loading) return <div className="p-6 text-center text-stone-500">Loading chat…</div>
+  if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading chat…</div>
+
+  if (!myId) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-lg font-bold text-stone-900">Sign in to view this chat</p>
+        <Link href="/login" className="mt-4 bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl text-sm">
+          Sign In
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col pb-4">

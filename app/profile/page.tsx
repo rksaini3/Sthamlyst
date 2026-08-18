@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 type Profile = {
   full_name: string | null
@@ -16,24 +17,30 @@ type Profile = {
 }
 
 export default function ProfilePage() {
+  const { user, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    // Re-runs automatically whenever the auth state actually resolves
+    // (including right after coming back from Google sign-in), instead
+    // of only checking once when the page first rendered.
+    if (authLoading) return
     load()
-  }, [])
+  }, [authLoading, user?.id])
 
   async function load() {
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) {
+    if (!user) {
+      setProfile(null)
       setLoading(false)
       return
     }
+    setLoading(true)
     const { data } = await supabase
       .from('profiles')
       .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
-      .eq('id', userData.user.id)
+      .eq('id', user.id)
       .single()
     if (data) setProfile(data as Profile)
     setLoading(false)
@@ -51,7 +58,7 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="p-6 text-center text-stone-500">Loading…</div>
+  if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading…</div>
 
   if (!profile) {
     return (

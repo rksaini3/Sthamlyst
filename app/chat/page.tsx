@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 type ConversationRow = {
   id: string
@@ -14,32 +15,42 @@ type ConversationRow = {
 }
 
 export default function ChatInboxPage() {
+  const { user, loading: authLoading } = useAuth()
   const [conversations, setConversations] = useState<ConversationRow[]>([])
-  const [myId, setMyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
     async function load() {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) {
-        setLoading(false)
-        return
-      }
-      setMyId(userData.user.id)
-
       const { data } = await supabase
         .from('conversations')
         .select('id, buyer_id, seller_id, product_id, updated_at, products ( title, image_url )')
-        .or(`buyer_id.eq.${userData.user.id},seller_id.eq.${userData.user.id}`)
+        .or(`buyer_id.eq.${user!.id},seller_id.eq.${user!.id}`)
         .order('updated_at', { ascending: false })
 
       if (data) setConversations(data as unknown as ConversationRow[])
       setLoading(false)
     }
     load()
-  }, [])
+  }, [authLoading, user])
 
-  if (loading) return <div className="p-6 text-center text-stone-500">Loading chats…</div>
+  if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading chats…</div>
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-4xl mb-3">💬</p>
+        <h1 className="text-lg font-bold text-stone-900">Sign in to see your chats</h1>
+        <Link href="/login" className="mt-4 bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl text-sm">
+          Sign In
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
@@ -62,7 +73,7 @@ export default function ChatInboxPage() {
                 {c.products?.title || 'General chat'}
               </p>
               <p className="text-[11px] text-stone-400">
-                {c.buyer_id === myId ? 'You are the buyer' : 'You are the seller'}
+                {c.buyer_id === user.id ? 'You are the buyer' : 'You are the seller'}
               </p>
             </div>
           </Link>

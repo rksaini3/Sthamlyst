@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 type Product = {
   id: string
@@ -19,27 +20,27 @@ type Product = {
 }
 
 export default function BazaarPage() {
+  const { user, loading: authLoading } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [totalSaved, setTotalSaved] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   async function refreshProfile() {
-    const { data: userData } = await supabase.auth.getUser()
-    if (userData?.user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('sthamly_points, total_saved_rupees')
-        .eq('id', userData.user.id)
-        .single()
-      if (profile) {
-        setPointsBalance(profile.sthamly_points)
-        setTotalSaved(profile.total_saved_rupees)
-      }
+    if (!user) return
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('sthamly_points, total_saved_rupees')
+      .eq('id', user.id)
+      .single()
+    if (profile) {
+      setPointsBalance(profile.sthamly_points)
+      setTotalSaved(profile.total_saved_rupees)
     }
   }
 
   useEffect(() => {
+    if (authLoading) return
     async function load() {
       const { data: productData } = await supabase
         .from('products')
@@ -58,7 +59,7 @@ export default function BazaarPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [authLoading, user])
 
   if (loading) {
     return <div className="p-6 text-center text-stone-500">Loading local bazaar…</div>
@@ -117,6 +118,7 @@ function ProductCard({
   const [confirmedDiscount, setConfirmedDiscount] = useState(0)
   const [redeeming, setRedeeming] = useState(false)
   const [redeemed, setRedeemed] = useState(false)
+  const { user } = useAuth()
   const router = useRouter()
 
   const cap = Math.min(product.max_discount_points, pointsBalance ?? 0)
@@ -127,6 +129,7 @@ function ProductCard({
   const finalPrice = Math.max(product.price - activeDiscount, 0)
 
   async function confirmRedeem() {
+    if (!user) { router.push('/login'); return }
     if (pointsToUse === 0) return
     setRedeeming(true)
     const { data, error } = await supabase.rpc('redeem_points', {
@@ -142,6 +145,7 @@ function ProductCard({
   }
 
   async function chatToBargain() {
+    if (!user) { router.push('/login'); return }
     const { data, error } = await supabase.rpc('start_conversation', {
       p_product_id: product.id,
     })

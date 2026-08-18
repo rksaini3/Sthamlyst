@@ -5,24 +5,25 @@ import TopBar from '@/components/TopBar'
 import StoriesBar from '@/components/StoriesBar'
 import ReelFeed from '@/components/ReelFeed'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 export default function Home() {
+  const { user, loading: authLoading } = useAuth()
   const [activeTheme, setActiveTheme] = useState<string | null>(null)
   const [totalSaved, setTotalSaved] = useState<number | null>(null)
 
   useEffect(() => {
+    if (authLoading || !user) return
     async function loadSavings() {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) return
       const { data } = await supabase
         .from('profiles')
         .select('total_saved_rupees')
-        .eq('id', userData.user.id)
+        .eq('id', user!.id)
         .single()
       if (data) setTotalSaved(data.total_saved_rupees)
     }
     loadSavings()
-  }, [])
+  }, [authLoading, user])
 
   return (
     <div className="max-w-md mx-auto pb-24 min-h-screen">

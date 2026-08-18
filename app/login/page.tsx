@@ -1,10 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
 
 export default function LoginPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [consent, setConsent] = useState(false)
@@ -12,6 +16,15 @@ export default function LoginPage() {
   const [sending, setSending] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    // Already signed in (e.g. just landed back here after Google auth
+    // resolved) — bounce straight to the profile instead of showing the
+    // login form again.
+    if (!authLoading && user) {
+      router.replace('/profile')
+    }
+  }, [authLoading, user, router])
 
   async function handleEmailLogin() {
     setError('')
@@ -60,6 +73,10 @@ export default function LoginPage() {
       setGoogleLoading(false)
     }
     // On success, Supabase redirects to Google — no further action needed here.
+  }
+
+  if (authLoading) {
+    return <div className="p-6 text-center text-stone-500">Loading…</div>
   }
 
   if (sent) {
