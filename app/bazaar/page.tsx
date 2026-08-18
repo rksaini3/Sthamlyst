@@ -8,6 +8,7 @@ type Product = {
   title: string
   description: string | null
   maker_name: string
+  maker_verified?: boolean
   maker_city: string
   price: number
   image_url: string | null
@@ -25,10 +26,16 @@ export default function BazaarPage() {
     async function load() {
       const { data: productData } = await supabase
         .from('products')
-        .select('*')
+        .select('*, profiles:maker_id ( seller_verified )')
         .eq('is_active', true)
 
-      if (productData) setProducts(productData as Product[])
+      if (productData) {
+        const mapped = productData.map((p: any) => ({
+          ...p,
+          maker_verified: p.profiles?.seller_verified ?? false,
+        }))
+        setProducts(mapped as Product[])
+      }
 
       const { data: userData } = await supabase.auth.getUser()
       if (userData?.user) {
@@ -116,6 +123,9 @@ function ProductCard({
       <div className="p-4">
         <p className="text-[11px] text-stone-500">
           by <span className="font-semibold text-stone-700">{product.maker_name}</span> · {product.maker_city}
+          {product.maker_verified && (
+            <span className="ml-1.5 text-green-600 font-semibold">✓ Verified</span>
+          )}
         </p>
         <h2 className="font-bold text-stone-900 mt-1">{product.title}</h2>
         <p className="text-sm text-stone-500 mt-1">{product.description}</p>
