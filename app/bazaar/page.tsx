@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Product = {
@@ -110,6 +111,14 @@ function ProductCard({
   }
 
   const finalPrice = Math.max(product.price - discount, 0)
+  const router = useRouter()
+
+  async function chatToBargain() {
+    const { data, error } = await supabase.rpc('start_conversation', {
+      p_product_id: product.id,
+    })
+    if (!error && data) router.push(`/chat/${data}`)
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
@@ -156,9 +165,17 @@ function ProductCard({
           </div>
         )}
 
-        <button className="mt-3 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm">
-          Add to Cart
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button className="flex-1 bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm">
+            Add to Cart
+          </button>
+          <button
+            onClick={chatToBargain}
+            className="flex-1 border border-amber-600 text-amber-700 font-semibold py-2.5 rounded-xl text-sm"
+          >
+            💬 Chat to Bargain
+          </button>
+        </div>
       </div>
     </div>
   )
