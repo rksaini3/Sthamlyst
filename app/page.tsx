@@ -1,39 +1,18 @@
-import Link from 'next/link'
+'use client'
+
+import { useState } from 'react'
+import TopBar from '@/components/TopBar'
+import StoriesBar from '@/components/StoriesBar'
+import ReelFeed from '@/components/ReelFeed'
 
 export default function Home() {
+  const [activeTheme, setActiveTheme] = useState<string | null>(null)
+
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-3xl font-extrabold text-amber-900">Sthamly</h1>
-      <p className="text-amber-700 mt-2">सीखो ➔ बनाओ ➔ लोकल बेचो</p>
-
-      <div className="mt-10 w-full space-y-4">
-        <Link
-          href="/learn"
-          className="block w-full bg-amber-600 text-white font-semibold py-3.5 rounded-xl"
-        >
-          🎥 Learn &amp; Earn
-        </Link>
-        <Link
-          href="/bazaar"
-          className="block w-full bg-stone-900 text-white font-semibold py-3.5 rounded-xl"
-        >
-          🛍️ Local Bazaar
-        </Link>
-        <Link
-          href="/profile"
-          className="block w-full border border-amber-300 text-amber-800 font-semibold py-3.5 rounded-xl"
-        >
-          👤 My Profile
-        </Link>
-        <Link
-          href="/chat"
-          className="block w-full border border-stone-300 text-stone-700 font-semibold py-3.5 rounded-xl"
-        >
-          💬 Chats
-        </Link>
-      </div>
-
-      <p className="text-xs text-stone-400 mt-10">Pilot: Gonda, Uttar Pradesh</p>
+    <div className="max-w-md mx-auto pb-24 min-h-screen">
+      <TopBar />
+      <StoriesBar activeTheme={activeTheme} onSelect={setActiveTheme} />
+      <ReelFeed themeFilter={activeTheme} />
     </div>
   )
 }
