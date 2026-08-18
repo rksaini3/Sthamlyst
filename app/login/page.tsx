@@ -18,6 +18,17 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Surface any error Supabase/Google put in the URL after a failed
+    // redirect (e.g. #error=..&error_description=..), instead of
+    // silently landing back on the login form with no explanation.
+    if (typeof window === 'undefined') return
+    const hash = new URLSearchParams(window.location.hash.replace('#', ''))
+    const search = new URLSearchParams(window.location.search)
+    const desc = hash.get('error_description') || search.get('error_description')
+    if (desc) setError(decodeURIComponent(desc.replace(/\+/g, ' ')))
+  }, [])
+
+  useEffect(() => {
     // Already signed in (e.g. just landed back here after Google auth
     // resolved) — bounce straight to the profile instead of showing the
     // login form again.

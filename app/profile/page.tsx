@@ -37,11 +37,25 @@ export default function ProfilePage() {
       return
     }
     setLoading(true)
-    const { data } = await supabase
+
+    let { data, error } = await supabase
       .from('profiles')
       .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
       .eq('id', user.id)
       .single()
+
+    // Self-heal: signed in, but no profile row exists yet (e.g. the
+    // on-signup trigger missed it) — create it now, then re-fetch.
+    if (error && !data) {
+      await supabase.rpc('ensure_profile')
+      const retry = await supabase
+        .from('profiles')
+        .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
+        .eq('id', user.id)
+        .single()
+      data = retry.data
+    }
+
     if (data) setProfile(data as Profile)
     setLoading(false)
   }
@@ -60,7 +74,7 @@ export default function ProfilePage() {
 
   if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading…</div>
 
-  if (!profile) {
+  if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
         <p className="text-4xl mb-3">👤</p>
@@ -74,6 +88,27 @@ export default function ProfilePage() {
         >
           Sign In
         </Link>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    // Signed in, but we couldn't load or create a profile row —
+    // this is a real error, not a "please sign in" situation.
+    return (
+      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-4xl mb-3">⚠️</p>
+        <h1 className="text-lg font-bold text-stone-900">Couldn&apos;t load your profile</h1>
+        <p className="text-sm text-stone-500 mt-2 mb-6">
+          You&apos;re signed in as {user.email}, but something went wrong loading your profile
+          data. Try again in a moment.
+        </p>
+        <button
+          onClick={() => load()}
+          className="w-full max-w-xs bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm"
+        >
+          Retry
+        </button>
       </div>
     )
   }
