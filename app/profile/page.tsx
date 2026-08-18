@@ -140,6 +140,12 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      <div className="mt-8 flex items-center justify-center gap-3 text-[11px] text-stone-400">
+        <Link href="/terms" className="underline">Terms &amp; Conditions</Link>
+        <span>·</span>
+        <Link href="/privacy" className="underline">Privacy Policy</Link>
+      </div>
     </div>
   )
 }
