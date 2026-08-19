@@ -160,7 +160,7 @@ export default function ChatThreadPage() {
 
   if (!myId) {
     return (
-      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-lg font-bold text-stone-900">Sign in to view this chat</p>
         <Link href="/login" className="mt-4 bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl text-sm">
           Sign In
@@ -170,7 +170,7 @@ export default function ChatThreadPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col pb-4">
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col pb-4">
       <header className="sticky top-0 bg-white/95 backdrop-blur px-3 py-2.5 border-b border-stone-100 z-10 flex items-center gap-3">
         <Link href="/chat"><ArrowLeft size={22} className="text-stone-800" /></Link>
         <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 flex-shrink-0">

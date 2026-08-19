@@ -31,7 +31,7 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className="min-h-screen bg-white">
+      <body className="min-h-dvh bg-white">
         <AuthProvider>
           {children}
           <BottomNav />

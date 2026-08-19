@@ -42,7 +42,7 @@ export default function ChatInboxPage() {
 
   if (!user) {
     return (
-      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-4xl mb-3">💬</p>
         <h1 className="text-lg font-bold text-stone-900">Sign in to see your chats</h1>
         <Link href="/login" className="mt-4 bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl text-sm">

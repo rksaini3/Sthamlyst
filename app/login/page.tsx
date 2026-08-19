@@ -92,7 +92,7 @@ export default function LoginPage() {
 
   if (sent) {
     return (
-      <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-4xl mb-3">📩</p>
         <h1 className="text-lg font-bold text-stone-900">Check your email</h1>
         <p className="text-sm text-stone-500 mt-2">
@@ -103,7 +103,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6">
       <h1 className="text-3xl font-extrabold text-amber-800" style={{ fontFamily: 'cursive' }}>
         Sthamly
       </h1>

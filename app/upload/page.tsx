@@ -43,6 +43,19 @@ export default function UploadReelPage() {
       setError('Video, title, aur dono quiz questions bharo.')
       return
     }
+
+    // Supabase's free tier rejects uploads over ~50MB, and on a slow mobile
+    // connection a large file often fails silently with a generic "Failed
+    // to fetch" instead of a clear size error — so we catch it here first
+    // with an actionable message.
+    const MAX_MB = 45
+    if (videoFile.size > MAX_MB * 1024 * 1024) {
+      setError(
+        `Ye video ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB ki hai — ${MAX_MB}MB se choti honi chahiye. Phone camera settings mein resolution kam karo, ya kisi video-compress app (jaise "Video Compressor") se chhota karke dobara try karo.`
+      )
+      return
+    }
+
     setUploading(true)
 
     if (!user) {
@@ -53,9 +66,21 @@ export default function UploadReelPage() {
     }
 
     const filePath = `${user.id}/${Date.now()}-${videoFile.name}`
-    const { error: uploadError } = await supabase.storage.from('reels').upload(filePath, videoFile)
+    let uploadError: any = null
+    try {
+      const result = await supabase.storage.from('reels').upload(filePath, videoFile)
+      uploadError = result.error
+    } catch (e: any) {
+      uploadError = e
+    }
+
     if (uploadError) {
-      setError('Video upload fail: ' + uploadError.message)
+      const isNetworkError = /failed to fetch|network/i.test(uploadError.message || '')
+      setError(
+        isNetworkError
+          ? 'Upload beech mein ruk gaya — internet connection check karo (WiFi ya strong 4G) aur dobara try karo. Video bada ho to pehle chhota kar lo.'
+          : 'Video upload fail: ' + uploadError.message
+      )
       setUploading(false)
       return
     }
@@ -102,6 +127,15 @@ export default function UploadReelPage() {
             onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm mt-1"
           />
+          <p className="text-[11px] text-stone-400 mt-1">
+            Under 45MB works best (a 1-min clip at normal quality). Very high-resolution phone
+            recordings can be 100MB+ and may fail to upload on slower networks.
+          </p>
+          {videoFile && (
+            <p className="text-[11px] text-stone-500 mt-1">
+              Selected: {(videoFile.size / (1024 * 1024)).toFixed(1)}MB
+            </p>
+          )}
         </div>
 
         <Field label="Title" value={title} onChange={setTitle} placeholder="How I hand-paint clay diyas" />

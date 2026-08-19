@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import TopBar from '@/components/TopBar'
-import StoriesBar from '@/components/StoriesBar'
+import StoriesRow from '@/components/StoriesRow'
+import CategoryFilter from '@/components/CategoryFilter'
 import ReelFeed from '@/components/ReelFeed'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -26,7 +27,7 @@ export default function Home() {
   }, [authLoading, user])
 
   return (
-    <div className="max-w-md mx-auto pb-24 min-h-screen">
+    <div className="max-w-md mx-auto pb-24 min-h-dvh">
       <TopBar />
 
       {totalSaved !== null && totalSaved > 0 && (
@@ -39,7 +40,8 @@ export default function Home() {
         </div>
       )}
 
-      <StoriesBar activeTheme={activeTheme} onSelect={setActiveTheme} />
+      <StoriesRow />
+      <CategoryFilter activeTheme={activeTheme} onSelect={setActiveTheme} />
       <ReelFeed themeFilter={activeTheme} />
     </div>
   )
