@@ -200,18 +200,18 @@ alter table public.lessons            enable row level security;
 alter table public.lesson_completions enable row level security;
 alter table public.products           enable row level security;
 
-drop policy if exists "Profiles viewable by owner" on conflict;
+drop policy if exists "Profiles viewable by owner" on public.profiles;
 create policy "Profiles viewable by owner" on public.profiles for select using (auth.uid() = id);
-drop policy if exists "Profiles editable by owner" on conflict;
+drop policy if exists "Profiles editable by owner" on public.profiles;
 create policy "Profiles editable by owner" on public.profiles for update using (auth.uid() = id);
 
-drop policy if exists "Published lessons are public" on conflict;
+drop policy if exists "Published lessons are public" on public.lessons;
 create policy "Published lessons are public" on public.lessons for select using (is_published = true);
 
-drop policy if exists "Users see their own completions" on conflict;
+drop policy if exists "Users see their own completions" on public.lesson_completions;
 create policy "Users see their own completions" on public.lesson_completions for select using (auth.uid() = user_id);
 
-drop policy if exists "Active products are public" on conflict;
+drop policy if exists "Active products are public" on public.products;
 create policy "Active products are public" on public.products for select using (is_active = true);
 
 -- Note: points are only ever changed via the complete_lesson() and
