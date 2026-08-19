@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [debugError, setDebugError] = useState('')
 
   useEffect(() => {
     // Re-runs automatically whenever the auth state actually resolves
@@ -37,6 +38,7 @@ export default function ProfilePage() {
       return
     }
     setLoading(true)
+    setDebugError('')
 
     let { data, error } = await supabase
       .from('profiles')
@@ -47,13 +49,19 @@ export default function ProfilePage() {
     // Self-heal: signed in, but no profile row exists yet (e.g. the
     // on-signup trigger missed it) — create it now, then re-fetch.
     if (error && !data) {
-      await supabase.rpc('ensure_profile')
+      const ensureResult = await supabase.rpc('ensure_profile')
+      if (ensureResult.error) {
+        setDebugError(`ensure_profile: ${ensureResult.error.message}`)
+      }
       const retry = await supabase
         .from('profiles')
         .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
         .eq('id', user.id)
         .single()
       data = retry.data
+      if (retry.error && !data) {
+        setDebugError((prev) => prev + ` | re-select: ${retry.error.message}`)
+      }
     }
 
     if (data) setProfile(data as Profile)
@@ -109,6 +117,11 @@ export default function ProfilePage() {
         >
           Retry
         </button>
+        {debugError && (
+          <p className="text-[11px] text-red-500 mt-4 max-w-xs break-words">
+            {debugError}
+          </p>
+        )}
       </div>
     )
   }
