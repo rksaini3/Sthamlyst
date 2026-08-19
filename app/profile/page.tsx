@@ -149,7 +149,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="mt-3 bg-amber-600 text-white rounded-2xl p-4 flex items-center justify-between">
-        <span className="font-semibold">Sthamly Points</span>
+        <span className="font-semibold">Sthamly Coins</span>
         <span className="text-2xl font-extrabold">🪙 {profile.sthamly_points}</span>
       </div>
 

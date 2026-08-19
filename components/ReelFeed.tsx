@@ -20,6 +20,8 @@ type Lesson = {
   points_reward: number
   is_user_generated: boolean
   tagged_product_id: string | null
+  long_form_video_url: string | null
+  long_form_title: string | null
 }
 
 type TaggedProduct = { id: string; title: string; price: number; image_url: string | null }
@@ -141,6 +143,17 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
         <h2 className="font-bold text-stone-900 mt-2">{lesson.title}</h2>
         <p className="text-sm text-stone-500 mt-1">{lesson.description}</p>
 
+        {lesson.long_form_video_url && (
+          <a
+            href={lesson.long_form_video_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700"
+          >
+            📺 {lesson.long_form_title || 'See Full Lesson'} →
+          </a>
+        )}
+
         {taggedProduct && (
           <Link
             href="/bazaar"
@@ -165,7 +178,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
             onClick={() => setShowQuiz(true)}
             className="mt-3 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm"
           >
-            Take Quiz · +{lesson.points_reward} points
+            Take Quiz · +{lesson.points_reward} Coins
           </button>
         )}
 
@@ -208,7 +221,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
 
         {result === 'earned' && (
           <p className="mt-3 text-sm font-semibold text-green-700 bg-green-50 rounded-xl px-3 py-2 text-center">
-            ✓ +{pointsEarned} Sthamly Points earned!
+            ✓ +{pointsEarned} Sthamly Coins earned!
           </p>
         )}
       </div>

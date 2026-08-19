@@ -220,9 +220,14 @@ create policy "Active products are public" on public.products for select using (
 
 -- ------------------------------------------------------------
 -- 9. SEED DATA — pilot theme: Clay Crafts & Home Decor (Gonda)
+--    Uses "insert ... where not exists" instead of "on conflict do
+--    nothing", because these tables have no unique constraint for
+--    ON CONFLICT to actually catch (id is a fresh random UUID every
+--    time) — the old approach silently re-inserted duplicates on
+--    every re-run of this script.
 -- ------------------------------------------------------------
 insert into public.lessons (title, description, video_url, craft_theme, quiz_questions, points_reward, order_index)
-values (
+select
   'How Mrs. Sharma Makes Clay Diyas',
   'A 1-minute look at hand-shaping clay diyas the traditional way.',
   null,
@@ -232,13 +237,21 @@ values (
     {"question":"Where is Mrs. Sharma based?","options":["Gonda","Mumbai","Delhi"],"correct_index":0}
   ]'::jsonb,
   10, 1
-) on conflict do nothing;
+where not exists (
+  select 1 from public.lessons where title = 'How Mrs. Sharma Makes Clay Diyas'
+);
 
 insert into public.products (title, description, maker_name, maker_city, price, category, max_discount_points, points_to_rupee_ratio, stock)
-values
-  ('Hand-Painted Clay Diya (Set of 4)', 'Traditional clay diyas, hand-painted by local artisans.', 'Mrs. Sharma', 'Gonda', 149.00, 'Clay Crafts & Home Decor', 50, 1.0, 100),
-  ('Terracotta Wall Hanging', 'Hand-molded terracotta décor piece.', 'Ramesh Kumar', 'Gonda', 349.00, 'Clay Crafts & Home Decor', 80, 1.0, 40)
-on conflict do nothing;
+select 'Hand-Painted Clay Diya (Set of 4)', 'Traditional clay diyas, hand-painted by local artisans.', 'Mrs. Sharma', 'Gonda', 149.00, 'Clay Crafts & Home Decor', 50, 1.0, 100
+where not exists (
+  select 1 from public.products where title = 'Hand-Painted Clay Diya (Set of 4)'
+);
+
+insert into public.products (title, description, maker_name, maker_city, price, category, max_discount_points, points_to_rupee_ratio, stock)
+select 'Terracotta Wall Hanging', 'Hand-molded terracotta décor piece.', 'Ramesh Kumar', 'Gonda', 349.00, 'Clay Crafts & Home Decor', 80, 1.0, 40
+where not exists (
+  select 1 from public.products where title = 'Terracotta Wall Hanging'
+);
 
 -- ============================================================
 -- DONE. .env.local needs:
@@ -1052,3 +1065,67 @@ begin
   return v_new_id;
 end;
 $$;
+-- STHAMLY — SCHEMA v9
+-- (1) One-time cleanup: earlier re-runs of the seed data (before
+--     this fix) inserted duplicate rows, because the lessons/products
+--     tables had no real uniqueness for "on conflict do nothing" to
+--     catch (every row's id is a fresh random UUID, so nothing ever
+--     conflicted). This removes the duplicates, keeping the oldest
+--     row for each repeated title.
+-- (2) Adds `long_form_video_url` to lessons — the founder's plan
+--     defines the Core MVP as "Reel + Long Video + Quiz + Coins +
+--     Creator + Commerce." Reels stay short (discovery); an optional
+--     "See Full Lesson" long-form video is where real learning/mastery
+--     happens, matching the plan's Short-Form vs Long-Form architecture.
+-- Run in Supabase SQL Editor AFTER the consolidated schema.
+-- ============================================================
+
+-- ---- Part 1: de-duplicate lessons (keep oldest per exact title) ----
+delete from public.lesson_completions
+where lesson_id in (
+  select id from (
+    select id, row_number() over (
+      partition by title order by created_at asc
+    ) as rn
+    from public.lessons
+  ) ranked
+  where rn > 1
+);
+
+delete from public.lessons
+where id in (
+  select id from (
+    select id, row_number() over (
+      partition by title order by created_at asc
+    ) as rn
+    from public.lessons
+  ) ranked
+  where rn > 1
+);
+
+-- ---- Part 1b: de-duplicate products (keep oldest per exact title) ----
+-- Only removes rows with no real owner (maker_id is null) — i.e. the
+-- original seed data — so we never accidentally delete something a
+-- real seller listed through the app.
+delete from public.products
+where maker_id is null
+  and id in (
+    select id from (
+      select id, row_number() over (
+        partition by title order by created_at asc
+      ) as rn
+      from public.products
+      where maker_id is null
+    ) ranked
+    where rn > 1
+  );
+
+-- ---- Part 2: long-form video support ----
+alter table public.lessons
+  add column if not exists long_form_video_url text,
+  add column if not exists long_form_title text;
+
+-- ============================================================
+-- DONE. lessons.long_form_video_url now available — the app's
+-- reel card shows a "See Full Lesson →" link whenever it's set.
+-- ============================================================
