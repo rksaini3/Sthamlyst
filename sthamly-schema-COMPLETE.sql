@@ -689,7 +689,12 @@ create policy "Participants can view their messages"
 -- direct INSERT policy is granted to the client role.
 
 -- Enable Realtime so the chat UI can subscribe to new messages live
-alter publication supabase_realtime add table public.messages;
+do $$
+begin
+  alter publication supabase_realtime add table public.messages;
+exception
+  when duplicate_object then null; -- already added, safe to ignore
+end $$;
 
 -- ============================================================
 -- DONE.
