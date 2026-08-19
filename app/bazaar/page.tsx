@@ -17,6 +17,8 @@ type Product = {
   category: string
   max_discount_points: number
   points_to_rupee_ratio: number
+  is_service: boolean
+  duration_minutes: number | null
 }
 
 export default function BazaarPage() {
@@ -25,6 +27,7 @@ export default function BazaarPage() {
   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [totalSaved, setTotalSaved] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<'products' | 'services'>('products')
 
   async function refreshProfile() {
     if (!user) return
@@ -65,13 +68,15 @@ export default function BazaarPage() {
     return <div className="p-6 text-center text-stone-500">Loading local bazaar…</div>
   }
 
+  const filtered = products.filter((p) => (tab === 'services' ? p.is_service : !p.is_service))
+
   return (
     <div className="max-w-md mx-auto pb-24">
       <header className="sticky top-0 bg-amber-50/95 backdrop-blur px-4 py-4 border-b border-amber-100 z-10">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-amber-900">Local Bazaar</h1>
-            <p className="text-xs text-amber-700 mt-0.5">Handmade goods, direct from Gonda makers</p>
+            <p className="text-xs text-amber-700 mt-0.5">Handmade goods & services, direct from Gonda makers</p>
           </div>
           {pointsBalance !== null && (
             <span className="text-xs font-bold bg-amber-600 text-white px-3 py-1.5 rounded-full whitespace-nowrap">
@@ -86,10 +91,29 @@ export default function BazaarPage() {
             <span className="text-lg font-extrabold">₹{totalSaved.toFixed(0)}</span>
           </div>
         )}
+
+        <div className="mt-3 flex gap-2 bg-white rounded-xl p-1 border border-amber-100">
+          <button
+            onClick={() => setTab('products')}
+            className={`flex-1 py-1.5 rounded-lg text-sm font-semibold ${
+              tab === 'products' ? 'bg-amber-600 text-white' : 'text-stone-500'
+            }`}
+          >
+            🏺 Products
+          </button>
+          <button
+            onClick={() => setTab('services')}
+            className={`flex-1 py-1.5 rounded-lg text-sm font-semibold ${
+              tab === 'services' ? 'bg-amber-600 text-white' : 'text-stone-500'
+            }`}
+          >
+            🛠️ Services
+          </button>
+        </div>
       </header>
 
       <div className="px-4 pt-4 grid grid-cols-1 gap-4">
-        {products.map((product) => (
+        {filtered.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -97,8 +121,10 @@ export default function BazaarPage() {
             onRedeemed={refreshProfile}
           />
         ))}
-        {products.length === 0 && (
-          <p className="text-center text-stone-400 pt-10">No products listed yet.</p>
+        {filtered.length === 0 && (
+          <p className="text-center text-stone-400 pt-10">
+            {tab === 'services' ? 'No services listed yet.' : 'No products listed yet.'}
+          </p>
         )}
       </div>
     </div>
@@ -118,6 +144,8 @@ function ProductCard({
   const [confirmedDiscount, setConfirmedDiscount] = useState(0)
   const [redeeming, setRedeeming] = useState(false)
   const [redeemed, setRedeemed] = useState(false)
+  const [booking, setBooking] = useState(false)
+  const [booked, setBooked] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
 
@@ -152,6 +180,23 @@ function ProductCard({
     if (!error && data) router.push(`/chat/${data}`)
   }
 
+  async function requestBooking() {
+    if (!user) { router.push('/login'); return }
+    setBooking(true)
+    const { error } = await supabase.rpc('request_booking', {
+      p_service_id: product.id,
+      p_requested_time: null,
+      p_notes: null,
+    })
+    setBooking(false)
+    if (!error) {
+      setBooked(true)
+      // also open a chat so the exact time/details can be worked out
+      const { data } = await supabase.rpc('start_conversation', { p_product_id: product.id })
+      if (data) router.push(`/chat/${data}`)
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
       <div className="w-full h-[280px] bg-stone-200">
@@ -170,6 +215,9 @@ function ProductCard({
         </p>
         <h2 className="font-bold text-stone-900 mt-1">{product.title}</h2>
         <p className="text-sm text-stone-500 mt-1">{product.description}</p>
+        {product.is_service && product.duration_minutes && (
+          <p className="text-[11px] text-stone-400 mt-1">⏱ {product.duration_minutes} min</p>
+        )}
 
         <div className="mt-3 flex items-baseline gap-2">
           <span className="text-lg font-extrabold text-stone-900">₹{finalPrice.toFixed(0)}</span>
@@ -178,7 +226,7 @@ function ProductCard({
           )}
         </div>
 
-        {cap > 0 && !redeemed && (
+        {!product.is_service && cap > 0 && !redeemed && (
           <div className="mt-3">
             <p className="text-[11px] text-stone-500 mb-1">
               Use your points for a discount (up to {cap} pts)
@@ -212,10 +260,26 @@ function ProductCard({
           </p>
         )}
 
+        {booked && (
+          <p className="mt-3 text-xs font-semibold text-green-700 bg-green-50 rounded-xl px-3 py-2 text-center">
+            ✓ Booking requested — chat opened to confirm the time
+          </p>
+        )}
+
         <div className="mt-3 flex gap-2">
-          <button className="flex-1 bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm">
-            Add to Cart
-          </button>
+          {product.is_service ? (
+            <button
+              onClick={requestBooking}
+              disabled={booking || booked}
+              className="flex-1 bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50"
+            >
+              {booking ? 'Requesting…' : booked ? 'Requested ✓' : '📅 Book Now'}
+            </button>
+          ) : (
+            <button className="flex-1 bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm">
+              Add to Cart
+            </button>
+          )}
           <button
             onClick={chatToBargain}
             className="flex-1 border border-amber-600 text-amber-700 font-semibold py-2.5 rounded-xl text-sm"
