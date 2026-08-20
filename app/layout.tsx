@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
@@ -14,6 +14,16 @@ const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono
 export const metadata: Metadata = {
   title: 'Sthamly — Learn & Earn',
   description: 'Learn from local makers, earn Sthamly Coins, shop the local handmade bazaar.',
+}
+
+// Locks the viewport to a fixed, predictable scale on every load —
+// including the fresh full-page reload that happens right after coming
+// back from Google Sign-In — so the page never renders zoomed in/out
+// unexpectedly.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 }
 
 export default function RootLayout({

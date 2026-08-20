@@ -4,6 +4,14 @@
 
 html, body {
   background-color: #ffffff;
+  /* Prevents mobile Chrome's automatic text-size-adjust ("font boosting")
+     from randomly shrinking or enlarging content on a fresh full-page
+     load — like the one that happens right after redirecting back from
+     Google Sign-In. Without this, the page can render at an inconsistent
+     zoom level depending on how Chrome decides to boost that particular
+     load, even though nothing in our own CSS changed. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .no-scrollbar::-webkit-scrollbar {
