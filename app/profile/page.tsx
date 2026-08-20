@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -135,12 +136,21 @@ export default function ProfilePage() {
           </h1>
           <p className="text-sm text-stone-500">{profile.city}</p>
         </div>
-        <button
-          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
-          className="text-xs font-semibold text-stone-500 border border-stone-300 rounded-full px-3 py-1.5"
-        >
-          Sign Out
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            className="text-stone-500 border border-stone-300 rounded-full p-1.5"
+            aria-label="Settings"
+          >
+            <Settings size={16} />
+          </Link>
+          <button
+            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
+            className="text-xs font-semibold text-stone-500 border border-stone-300 rounded-full px-3 py-1.5"
+          >
+            Sign Out
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 bg-mehendi text-white rounded-2xl p-4">

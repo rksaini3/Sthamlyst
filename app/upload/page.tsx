@@ -21,6 +21,8 @@ export default function UploadReelPage() {
   const [q2Options, setQ2Options] = useState(['', '', ''])
   const [q2Correct, setQ2Correct] = useState(0)
   const [taggedProductId, setTaggedProductId] = useState('')
+  const [longFormFile, setLongFormFile] = useState<File | null>(null)
+  const [longFormTitle, setLongFormTitle] = useState('')
   const [myProducts, setMyProducts] = useState<MyProduct[]>([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -87,6 +89,27 @@ export default function UploadReelPage() {
 
     const { data: publicUrlData } = supabase.storage.from('reels').getPublicUrl(filePath)
 
+    // Optional long-form video — a normal 16:9 deeper lesson, uploaded
+    // separately from the short 9:16 reel.
+    let longFormUrl: string | null = null
+    if (longFormFile) {
+      const LONG_MAX_MB = 200
+      if (longFormFile.size > LONG_MAX_MB * 1024 * 1024) {
+        setError(`Long-form video ${LONG_MAX_MB}MB se choti honi chahiye.`)
+        setUploading(false)
+        return
+      }
+      const longPath = `${user.id}/long-${Date.now()}-${longFormFile.name}`
+      const { error: longUploadError } = await supabase.storage.from('reels').upload(longPath, longFormFile)
+      if (longUploadError) {
+        setError('Long-form video upload fail: ' + longUploadError.message)
+        setUploading(false)
+        return
+      }
+      const { data: longUrlData } = supabase.storage.from('reels').getPublicUrl(longPath)
+      longFormUrl = longUrlData.publicUrl
+    }
+
     const quizQuestions = [
       { question: q1, options: q1Options.filter(Boolean), correct_index: q1Correct },
       { question: q2, options: q2Options.filter(Boolean), correct_index: q2Correct },
@@ -99,6 +122,8 @@ export default function UploadReelPage() {
       p_craft_theme: craftTheme,
       p_quiz_questions: quizQuestions,
       p_tagged_product_id: taggedProductId || null,
+      p_long_form_video_url: longFormUrl,
+      p_long_form_title: longFormTitle || null,
     })
 
     setUploading(false)
@@ -108,12 +133,12 @@ export default function UploadReelPage() {
       return
     }
 
-    router.push('/learn')
+    router.push('/')
   }
 
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
-      <h1 className="text-xl font-bold text-amber-900">Upload a Reel</h1>
+      <h1 className="text-xl font-bold text-clay">Upload a Reel</h1>
       <p className="text-xs text-stone-500 mt-1">
         1-min video + a 2-question quiz. Viewers earn points, and can buy your tagged product.
       </p>
@@ -184,12 +209,38 @@ export default function UploadReelPage() {
           </div>
         )}
 
+        <div className="border border-violet/30 bg-violet-light rounded-xl p-3">
+          <p className="text-sm font-semibold text-violet mb-1">📺 Long-Form Lesson (optional)</p>
+          <p className="text-[11px] text-violet/70 mb-2">
+            A fuller tutorial, 16:9, that viewers open from a &quot;See Full Lesson&quot; link on your reel.
+          </p>
+          <input
+            type="file"
+            accept="video/*"
+            onChange={(e) => setLongFormFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm"
+          />
+          {longFormFile && (
+            <p className="text-[11px] text-stone-500 mt-1">
+              {(longFormFile.size / (1024 * 1024)).toFixed(1)}MB (up to 200MB)
+            </p>
+          )}
+          {longFormFile && (
+            <input
+              value={longFormTitle}
+              onChange={(e) => setLongFormTitle(e.target.value)}
+              placeholder="Long-form title (optional)"
+              className="w-full border border-stone-300 rounded-lg px-3 py-1.5 text-sm mt-2"
+            />
+          )}
+        </div>
+
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <button
           onClick={handleSubmit}
           disabled={uploading}
-          className="w-full bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
+          className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
         >
           {uploading ? 'Uploading…' : 'Publish Reel'}
         </button>
