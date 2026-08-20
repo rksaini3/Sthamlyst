@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import TopBar from '@/components/TopBar'
 import StoriesRow from '@/components/StoriesRow'
 import CategoryFilter from '@/components/CategoryFilter'
 import ReelFeed from '@/components/ReelFeed'
@@ -28,10 +27,8 @@ export default function Home() {
 
   return (
     <div className="max-w-md mx-auto pb-24 min-h-dvh">
-      <TopBar />
-
       {totalSaved !== null && totalSaved > 0 && (
-        <div className="mx-4 mt-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-4 mt-3 bg-mehendi text-white rounded-2xl px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-[11px] font-medium opacity-90">आपने अब तक बचाए</p>
             <p className="text-2xl font-extrabold">₹{totalSaved.toFixed(0)}</p>

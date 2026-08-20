@@ -1,12 +1,19 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
+import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
+import GlobalHeader from '@/components/GlobalHeader'
 import { AuthProvider } from '@/lib/AuthProvider'
+
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' })
+const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono', weight: ['400', '500'] })
 
 export const metadata: Metadata = {
   title: 'Sthamly — Learn & Earn',
-  description: 'Learn from local makers, earn Sthamly Points, shop the local handmade bazaar.',
+  description: 'Learn from local makers, earn Sthamly Coins, shop the local handmade bazaar.',
 }
 
 export default function RootLayout({
@@ -15,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${fraunces.variable} ${inter.variable} ${notoDevanagari.variable} ${plexMono.variable}`}>
       <head>
         {/* Google Analytics Tag */}
         <Script
@@ -31,8 +38,9 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className="min-h-dvh bg-white">
+      <body className="min-h-dvh bg-white font-body">
         <AuthProvider>
+          <GlobalHeader />
           {children}
           <BottomNav />
         </AuthProvider>

@@ -121,7 +121,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-      <div className="aspect-video bg-stone-200 flex items-center justify-center text-stone-400 text-sm">
+      <div className="aspect-[9/16] bg-stone-200 flex items-center justify-center text-stone-400 text-sm">
         {lesson.video_url ? (
           <video src={lesson.video_url} controls className="w-full h-full object-cover" />
         ) : (
@@ -131,7 +131,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
 
       <div className="p-4">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-semibold text-turmeric bg-turmeric-light px-2 py-0.5 rounded-full">
             {lesson.craft_theme}
           </span>
           {lesson.is_user_generated && (
@@ -144,14 +144,12 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
         <p className="text-sm text-stone-500 mt-1">{lesson.description}</p>
 
         {lesson.long_form_video_url && (
-          <a
-            href={lesson.long_form_video_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700"
+          <Link
+            href={`/lesson/${lesson.id}`}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-clay"
           >
             📺 {lesson.long_form_title || 'See Full Lesson'} →
-          </a>
+          </Link>
         )}
 
         {taggedProduct && (
@@ -165,9 +163,9 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
             )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-stone-800 truncate">{taggedProduct.title}</p>
-              <p className="text-xs text-amber-700 font-bold">₹{taggedProduct.price}</p>
+              <p className="text-xs text-clay font-bold">₹{taggedProduct.price}</p>
             </div>
-            <span className="text-[11px] font-bold bg-amber-600 text-white px-3 py-1.5 rounded-full whitespace-nowrap">
+            <span className="text-[11px] font-bold bg-clay text-white px-3 py-1.5 rounded-full whitespace-nowrap">
               Buy Now
             </span>
           </Link>
@@ -176,7 +174,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
         {!showQuiz && result !== 'earned' && (
           <button
             onClick={() => setShowQuiz(true)}
-            className="mt-3 w-full bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm"
+            className="mt-3 w-full bg-clay text-white font-semibold py-2.5 rounded-xl text-sm"
           >
             Take Quiz · +{lesson.points_reward} Coins
           </button>
@@ -194,7 +192,7 @@ function LessonCard({ lesson, taggedProduct }: { lesson: Lesson; taggedProduct?:
                       onClick={() => selectAnswer(qi, oi)}
                       className={`text-xs px-3 py-1.5 rounded-full border ${
                         answers[qi] === oi
-                          ? 'bg-amber-600 text-white border-amber-600'
+                          ? 'bg-clay text-white border-clay'
                           : 'border-stone-300 text-stone-600'
                       }`}
                     >

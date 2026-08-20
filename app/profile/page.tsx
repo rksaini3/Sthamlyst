@@ -92,7 +92,7 @@ export default function ProfilePage() {
         </p>
         <Link
           href="/login"
-          className="w-full max-w-xs bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm"
+          className="w-full max-w-xs bg-clay text-white font-semibold py-3 rounded-xl text-sm"
         >
           Sign In
         </Link>
@@ -113,7 +113,7 @@ export default function ProfilePage() {
         </p>
         <button
           onClick={() => load()}
-          className="w-full max-w-xs bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm"
+          className="w-full max-w-xs bg-clay text-white font-semibold py-3 rounded-xl text-sm"
         >
           Retry
         </button>
@@ -143,18 +143,26 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <div className="mt-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl p-4">
+      <div className="mt-4 bg-mehendi text-white rounded-2xl p-4">
         <span className="text-xs font-medium opacity-90">Total Saved via Learning</span>
         <p className="text-3xl font-extrabold mt-0.5">₹{profile.total_saved_rupees.toFixed(0)}</p>
       </div>
 
-      <div className="mt-3 bg-amber-600 text-white rounded-2xl p-4 flex items-center justify-between">
-        <span className="font-semibold">Sthamly Coins</span>
-        <span className="text-2xl font-extrabold">🪙 {profile.sthamly_points}</span>
+      <div className="mt-3 bg-turmeric text-white rounded-2xl p-4">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold">Sthamly Coins</span>
+          <span className="text-2xl font-extrabold">🪙 {profile.sthamly_points}</span>
+        </div>
+        <Link
+          href="/bazaar"
+          className="mt-2 block text-center bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-xl text-xs"
+        >
+          Redeem Coins in Bazaar →
+        </Link>
       </div>
 
       {profile.seller_verified && (
-        <div className="mt-3 inline-flex items-center gap-1.5 bg-green-50 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full">
+        <div className="mt-3 inline-flex items-center gap-1.5 bg-mehendi-light text-mehendi text-xs font-semibold px-3 py-1.5 rounded-full">
           ✓ Gonda ka Verified Maker
         </div>
       )}
@@ -183,7 +191,7 @@ export default function ProfilePage() {
           </Link>
         )}
         {profile.is_creator && (
-          <Link href="/upload" className="flex-1 text-center bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm">
+          <Link href="/upload" className="flex-1 text-center bg-clay text-white font-semibold py-3 rounded-xl text-sm">
             + Upload a Reel
           </Link>
         )}
@@ -234,7 +242,7 @@ function RoleToggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`w-12 h-7 rounded-full flex-shrink-0 transition-colors relative ${
-          checked ? 'bg-amber-600' : 'bg-stone-300'
+          checked ? 'bg-clay' : 'bg-stone-300'
         }`}
       >
         <span
