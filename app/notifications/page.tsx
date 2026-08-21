@@ -31,6 +31,7 @@ export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth()
   const [items, setItems] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'social' | 'order'>('all')
 
   useEffect(() => {
     if (authLoading || !user) { setLoading(false); return }
@@ -53,12 +54,35 @@ export default function NotificationsPage() {
 
   if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading…</div>
 
+  const filtered = filter === 'all' ? items : items.filter((n) => n.category === filter)
+
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6 min-h-dvh">
       <h1 className="text-xl font-heading font-semibold text-stone-900">Notifications</h1>
 
+      <div className="mt-3 flex gap-2 bg-stone-100 rounded-xl p-1">
+        <button
+          onClick={() => setFilter('all')}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${filter === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+        >
+          All
+        </button>
+        <button
+          onClick={() => setFilter('social')}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${filter === 'social' ? 'bg-white text-indigobrand shadow-sm' : 'text-stone-500'}`}
+        >
+          ग्राहकों के सवाल
+        </button>
+        <button
+          onClick={() => setFilter('order')}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${filter === 'order' ? 'bg-white text-mehendi shadow-sm' : 'text-stone-500'}`}
+        >
+          बाज़ार के ऑर्डर्स
+        </button>
+      </div>
+
       <div className="mt-4 space-y-2">
-        {items.map((n) => (
+        {filtered.map((n) => (
           <button
             key={n.id}
             onClick={() => !n.is_read && markRead(n.id)}

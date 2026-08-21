@@ -112,6 +112,10 @@ export default function ChatThreadPage() {
     setOffer('')
   }
 
+  async function markDealComplete() {
+    await supabase.rpc('mark_deal_completed', { p_conversation_id: conversationId })
+  }
+
   async function handleFileUpload(file: File) {
     if (!myId) return
     setUploading(true)
@@ -191,10 +195,16 @@ export default function ChatThreadPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={product.image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-stone-800 truncate">{product.title}</p>
-            <p className="text-[11px] text-amber-700 font-bold">₹{product.price}</p>
+            <p className="text-[11px] text-clay font-bold">₹{product.price}</p>
           </div>
+          <button
+            onClick={markDealComplete}
+            className="text-[10px] font-bold text-mehendi bg-mehendi-light px-2.5 py-1 rounded-full flex-shrink-0"
+          >
+            ✓ सौदा पक्का
+          </button>
         </div>
       )}
 

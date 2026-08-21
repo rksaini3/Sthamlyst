@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 export default function CategoryFilter({
@@ -32,7 +33,7 @@ export default function CategoryFilter({
       <button
         onClick={() => onSelect(null)}
         className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 ${
-          activeTheme === null ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600'
+          activeTheme === null ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'
         }`}
       >
         ✨ All
@@ -42,12 +43,18 @@ export default function CategoryFilter({
           key={theme}
           onClick={() => onSelect(theme)}
           className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 ${
-            activeTheme === theme ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600'
+            activeTheme === theme ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'
           }`}
         >
           {theme}
         </button>
       ))}
+      <Link
+        href="/muhnadi"
+        className="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 bg-indigobrand-light text-indigobrand"
+      >
+        📢 मुनादी
+      </Link>
     </div>
   )
 }

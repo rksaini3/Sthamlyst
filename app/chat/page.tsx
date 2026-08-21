@@ -11,6 +11,7 @@ type ConversationRow = {
   seller_id: string
   product_id: string | null
   updated_at: string
+  deal_status: 'active' | 'completed'
   products: { title: string; image_url: string | null } | null
 }
 
@@ -18,6 +19,7 @@ export default function ChatInboxPage() {
   const { user, loading: authLoading } = useAuth()
   const [conversations, setConversations] = useState<ConversationRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'active' | 'completed'>('active')
 
   useEffect(() => {
     if (authLoading) return
@@ -28,7 +30,7 @@ export default function ChatInboxPage() {
     async function load() {
       const { data } = await supabase
         .from('conversations')
-        .select('id, buyer_id, seller_id, product_id, updated_at, products ( title, image_url )')
+        .select('id, buyer_id, seller_id, product_id, updated_at, deal_status, products ( title, image_url )')
         .or(`buyer_id.eq.${user!.id},seller_id.eq.${user!.id}`)
         .order('updated_at', { ascending: false })
 
@@ -45,20 +47,41 @@ export default function ChatInboxPage() {
       <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-4xl mb-3">💬</p>
         <h1 className="text-lg font-bold text-stone-900">Sign in to see your chats</h1>
-        <Link href="/login" className="mt-4 bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl text-sm">
+        <Link href="/login" className="mt-4 bg-clay text-white font-semibold py-3 px-6 rounded-xl text-sm">
           Sign In
         </Link>
       </div>
     )
   }
 
+  const filtered = conversations.filter((c) => c.deal_status === filter)
+
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
-      <h1 className="text-xl font-bold text-amber-900">Chats</h1>
+      <h1 className="text-xl font-heading font-semibold text-clay">Chats</h1>
       <p className="text-xs text-stone-500 mt-1">Bargain directly with buyers &amp; sellers</p>
 
+      <div className="mt-3 flex gap-2 bg-stone-100 rounded-xl p-1">
+        <button
+          onClick={() => setFilter('active')}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${
+            filter === 'active' ? 'bg-white text-clay shadow-sm' : 'text-stone-500'
+          }`}
+        >
+          सक्रिय मोल-भाव
+        </button>
+        <button
+          onClick={() => setFilter('completed')}
+          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${
+            filter === 'completed' ? 'bg-white text-mehendi shadow-sm' : 'text-stone-500'
+          }`}
+        >
+          सफल सौदे
+        </button>
+      </div>
+
       <div className="mt-4 space-y-2">
-        {conversations.map((c) => (
+        {filtered.map((c) => (
           <Link
             key={c.id}
             href={`/chat/${c.id}`}
@@ -76,11 +99,18 @@ export default function ChatInboxPage() {
                 {c.buyer_id === user.id ? 'You are the buyer' : 'You are the seller'}
               </p>
             </div>
+            {c.deal_status === 'completed' && (
+              <span className="text-[10px] font-bold text-mehendi bg-mehendi-light px-2 py-0.5 rounded-full">
+                ✓ Done
+              </span>
+            )}
           </Link>
         ))}
-        {conversations.length === 0 && (
+        {filtered.length === 0 && (
           <p className="text-center text-stone-400 pt-10 text-sm">
-            No chats yet. Tap &quot;Chat to Bargain&quot; on any product in the Bazaar.
+            {filter === 'active'
+              ? 'No active bargains yet. Tap "Chat to Bargain" on any product in the Bazaar.'
+              : 'No completed deals yet.'}
           </p>
         )}
       </div>
