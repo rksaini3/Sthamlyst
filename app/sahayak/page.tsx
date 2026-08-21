@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { Sparkles } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
-type Message = { role: 'user' | 'sahayak'; text: string; links?: { label: string; href: string }[] }
+type Message = { role: 'user' | 'sahayak'; text: string }
 
 export default function SahayakPage() {
   const [input, setInput] = useState('')
@@ -20,39 +18,25 @@ export default function SahayakPage() {
   async function handleSend() {
     const text = input.trim()
     if (!text) return
-    setMessages((prev) => [...prev, { role: 'user', text }])
+    const newHistory = [...messages, { role: 'user' as const, text }]
+    setMessages(newHistory)
     setInput('')
     setThinking(true)
 
-    // Foundation version: keyword search across products/services/lessons.
-    // This is not yet a true reasoning AI — real multi-turn understanding
-    // and voice input are a later phase (see Sahayak Part 2 in the plan).
-    const q = `%${text}%`
-    const [productRes, lessonRes] = await Promise.all([
-      supabase.from('products').select('id, title, price, is_service').eq('is_active', true).ilike('title', q).limit(5),
-      supabase.from('lessons').select('id, title').eq('is_published', true).ilike('title', q).limit(5),
-    ])
-
-    const products = productRes.data || []
-    const lessons = lessonRes.data || []
-
-    let reply = ''
-    const links: { label: string; href: string }[] = []
-
-    if (products.length > 0) {
-      reply += `Mujhe Bazaar mein ${products.length} cheez milin: ` + products.map((p: any) => p.title).join(', ') + '. '
-      links.push({ label: 'Open Bazaar', href: '/bazaar' })
+    try {
+      const res = await fetch('/api/sahayak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: newHistory.map((m) => ({ role: m.role, text: m.text })),
+        }),
+      })
+      const data = await res.json()
+      setMessages((prev) => [...prev, { role: 'sahayak', text: data.reply || 'Kuch gadbad ho gayi.' }])
+    } catch {
+      setMessages((prev) => [...prev, { role: 'sahayak', text: 'Network error — dobara try karo.' }])
     }
-    if (lessons.length > 0) {
-      reply += `Aur ${lessons.length} reels mile: ` + lessons.map((l: any) => l.title).join(', ') + '. '
-      links.push({ label: 'Open Feed', href: '/' })
-    }
-    if (!reply) {
-      reply = 'Mujhe kuch match nahi mila. Thoda alag tarike se try karo, ya seedhe Search page use karo.'
-      links.push({ label: 'Open Search', href: '/search' })
-    }
-
-    setMessages((prev) => [...prev, { role: 'sahayak', text: reply, links }])
     setThinking(false)
   }
 
@@ -62,7 +46,7 @@ export default function SahayakPage() {
         <Sparkles size={20} className="text-violet" />
         <div>
           <p className="text-sm font-bold text-violet">Sthamly Sahayak</p>
-          <p className="text-[11px] text-violet/70">Foundation version — type for now, voice coming later</p>
+          <p className="text-[11px] text-violet/70">Gemini AI se powered — type for now, voice coming later</p>
         </div>
       </div>
 
@@ -70,20 +54,11 @@ export default function SahayakPage() {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
                 m.role === 'user' ? 'bg-clay text-white' : 'bg-violet-light text-stone-800'
               }`}
             >
-              <p>{m.text}</p>
-              {m.links && m.links.length > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {m.links.map((l) => (
-                    <Link key={l.href} href={l.href} className="text-xs font-semibold underline text-violet">
-                      {l.label} →
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {m.text}
             </div>
           </div>
         ))}
@@ -98,7 +73,7 @@ export default function SahayakPage() {
           placeholder="Kuch bhi pucho…"
           className="flex-1 border border-stone-300 rounded-full px-4 py-2 text-sm"
         />
-        <button onClick={handleSend} className="bg-violet text-white font-semibold px-4 py-2 rounded-full text-sm">
+        <button onClick={handleSend} disabled={thinking} className="bg-violet text-white font-semibold px-4 py-2 rounded-full text-sm disabled:opacity-50">
           Bhejo
         </button>
       </div>
