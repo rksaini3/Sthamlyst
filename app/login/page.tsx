@@ -104,10 +104,14 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6">
-      <h1 className="text-3xl font-extrabold text-amber-800" style={{ fontFamily: 'cursive' }}>
+      <h1 className="text-3xl font-heading font-semibold text-clay">
         Sthamly
       </h1>
-      <p className="text-sm text-stone-500 mt-1 mb-8">सीखो ➔ बनाओ ➔ लोकल बेचो</p>
+      <p className="text-sm text-stone-500 mt-1">सीखो ➔ बनाओ ➔ लोकल बेचो</p>
+      <p className="text-xs text-stone-400 mt-2 mb-6 text-center">
+        Naya account bana rahe ho ya pehle se ho — bas neeche se continue karo,
+        Sthamly khud pehchan lega. Koi alag &quot;Sign Up&quot; form nahi bharna padta.
+      </p>
 
       <div className="w-full space-y-3">
         <button
@@ -116,19 +120,19 @@ export default function LoginPage() {
           className="w-full flex items-center justify-center gap-2 border border-stone-300 rounded-xl py-3 text-sm font-semibold text-stone-700 disabled:opacity-50"
         >
           <GoogleIcon />
-          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+          {googleLoading ? 'Redirecting…' : 'Continue with Google (Sign in / Sign up)'}
         </button>
 
         <div className="flex items-center gap-3 py-1">
           <div className="flex-1 h-px bg-stone-200" />
-          <span className="text-xs text-stone-400">or</span>
+          <span className="text-xs text-stone-400">or email se</span>
           <div className="flex-1 h-px bg-stone-200" />
         </div>
 
         <input
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          placeholder="Your name"
+          placeholder="Your name (naya account ke liye)"
           className="w-full border border-stone-300 rounded-xl px-4 py-3 text-sm"
         />
         <input
@@ -149,9 +153,9 @@ export default function LoginPage() {
           <span className="text-[11px] text-stone-500 leading-snug">
             मैं सहमति देता/देती हूं कि मेरा नाम, ईमेल और शहर Sthamly की Learn &amp; Earn और Local
             Bazaar सेवाएं देने के लिए इस्तेमाल किया जाए, जैसा{' '}
-            <Link href="/privacy" className="text-amber-700 underline">Privacy Policy</Link> में
+            <Link href="/privacy" className="text-clay underline">Privacy Policy</Link> में
             बताया गया है। I agree to the{' '}
-            <Link href="/terms" className="text-amber-700 underline">Terms</Link>.
+            <Link href="/terms" className="text-clay underline">Terms</Link>.
           </span>
         </label>
 
@@ -160,9 +164,9 @@ export default function LoginPage() {
         <button
           onClick={handleEmailLogin}
           disabled={sending}
-          className="w-full bg-amber-600 text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
+          className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
         >
-          {sending ? 'Sending link…' : 'Continue with Email'}
+          {sending ? 'Sending link…' : 'Continue with Email (Sign in / Sign up)'}
         </button>
       </div>
 

@@ -1,19 +1,67 @@
 'use client'
 
-import { useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Sparkles, Mic, Send, Square } from 'lucide-react'
 
 type Message = { role: 'user' | 'sahayak'; text: string }
+
+// Minimal typing for the Web Speech API (not in default TS lib.dom yet)
+type SpeechRecognitionResultLike = { transcript: string }
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((e: any) => void) | null
+  onerror: ((e: any) => void) | null
+  onend: (() => void) | null
+}
 
 export default function SahayakPage() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'sahayak',
-      text: 'नमस्ते! Main Sthamly Sahayak hoon. Mujhse products, services, ya reels ke baare mein pucho — jaise "mujhe clay diya dikhao" ya "photography wale creator dikhao".',
+      text: 'नमस्ते! Main Sthamly Sahayak hoon. Type karke ya 🎙️ mic dabake bolke pucho — jaise "mujhe clay diya dikhao" ya "photography wale creator dikhao".',
     },
   ])
   const [thinking, setThinking] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(true)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setVoiceSupported(false)
+      return
+    }
+    const recognition: SpeechRecognitionLike = new SpeechRecognition()
+    recognition.lang = 'hi-IN'
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript
+      setInput(transcript)
+    }
+    recognition.onerror = () => setListening(false)
+    recognition.onend = () => setListening(false)
+    recognitionRef.current = recognition
+  }, [])
+
+  function toggleVoice() {
+    if (!recognitionRef.current) return
+    if (listening) {
+      recognitionRef.current.stop()
+      setListening(false)
+    } else {
+      setInput('')
+      recognitionRef.current.start()
+      setListening(true)
+    }
+  }
 
   async function handleSend() {
     const text = input.trim()
@@ -46,7 +94,7 @@ export default function SahayakPage() {
         <Sparkles size={20} className="text-violet" />
         <div>
           <p className="text-sm font-bold text-violet">Sthamly Sahayak</p>
-          <p className="text-[11px] text-violet/70">Gemini AI se powered — type for now, voice coming later</p>
+          <p className="text-[11px] text-violet/70">Gemini AI se powered — type ya bolke pucho</p>
         </div>
       </div>
 
@@ -63,19 +111,41 @@ export default function SahayakPage() {
           </div>
         ))}
         {thinking && <p className="text-xs text-stone-400">Sahayak soch raha hai…</p>}
+        {listening && <p className="text-xs text-violet font-semibold">🎙️ Sun raha hoon… bolo</p>}
       </div>
 
-      <div className="px-4 pt-2 border-t border-stone-100 flex items-center gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Kuch bhi pucho…"
-          className="flex-1 border border-stone-300 rounded-full px-4 py-2 text-sm"
-        />
-        <button onClick={handleSend} disabled={thinking} className="bg-violet text-white font-semibold px-4 py-2 rounded-full text-sm disabled:opacity-50">
-          Bhejo
-        </button>
+      <div className="px-4 pt-2 border-t border-stone-100">
+        <div className="flex items-center gap-2 bg-stone-50 rounded-full border border-stone-200 pl-4 pr-1.5 py-1.5">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Kuch bhi pucho…"
+            className="flex-1 bg-transparent text-sm outline-none min-w-0"
+          />
+          {voiceSupported && (
+            <button
+              onClick={toggleVoice}
+              className={`p-2 rounded-full flex-shrink-0 ${listening ? 'bg-red-600 text-white' : 'text-violet'}`}
+              aria-label="Voice input"
+            >
+              {listening ? <Square size={16} /> : <Mic size={18} />}
+            </button>
+          )}
+          <button
+            onClick={handleSend}
+            disabled={thinking || !input.trim()}
+            className="bg-violet text-white p-2.5 rounded-full flex-shrink-0 disabled:opacity-40"
+            aria-label="Send"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+        {!voiceSupported && (
+          <p className="text-[10px] text-stone-400 mt-1 text-center">
+            Voice input is browser mein supported nahi hai — typing use karo.
+          </p>
+        )}
       </div>
     </div>
   )
