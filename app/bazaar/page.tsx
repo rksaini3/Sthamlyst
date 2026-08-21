@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ShoppingBag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import PageSkeleton from '@/components/PageSkeleton'
 
 type Product = {
   id: string
@@ -98,7 +99,7 @@ export default function BazaarPage() {
   const cartTotal = cart.reduce((sum, c) => sum + (c.product?.price || 0) * c.quantity, 0)
 
   if (loading) {
-    return <div className="p-6 text-center text-stone-500">Loading local bazaar…</div>
+    return <PageSkeleton rows={2} />
   }
 
   const filtered = products.filter((p) => (tab === 'services' ? p.is_service : !p.is_service))

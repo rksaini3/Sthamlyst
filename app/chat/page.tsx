@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import PageSkeleton from '@/components/PageSkeleton'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -40,7 +41,7 @@ export default function ChatInboxPage() {
     load()
   }, [authLoading, user])
 
-  if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading chats…</div>
+  if (loading || authLoading) return <PageSkeleton rows={2} />
 
   if (!user) {
     return (

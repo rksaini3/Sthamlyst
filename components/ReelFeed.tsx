@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
+import PageSkeleton from './PageSkeleton'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -133,7 +134,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
   }
 
   if (loading) {
-    return <div className="p-6 text-center text-stone-500">Loading…</div>
+    return <PageSkeleton rows={2} />
   }
 
   return (

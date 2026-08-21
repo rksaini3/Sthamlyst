@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import PageSkeleton from '@/components/PageSkeleton'
 
 type Notification = {
   id: string
@@ -52,7 +53,7 @@ export default function NotificationsPage() {
     await supabase.rpc('mark_notification_read', { p_id: id })
   }
 
-  if (loading || authLoading) return <div className="p-6 text-center text-stone-500">Loading…</div>
+  if (loading || authLoading) return <PageSkeleton rows={1} />
 
   const filtered = filter === 'all' ? items : items.filter((n) => n.category === filter)
 
