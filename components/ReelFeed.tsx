@@ -21,6 +21,7 @@ type Lesson = {
   craft_theme: string
   quiz_questions: QuizQuestion[]
   points_reward: number
+  watch_reward: number
   is_user_generated: boolean
   creator_id: string | null
   tagged_product_id: string | null
@@ -178,44 +179,113 @@ function LessonCard({
   onToggleFollow: () => void
   onCommentAdded: () => void
 }) {
-  const [showQuiz, setShowQuiz] = useState(false)
+  // Variable quiz frequency: only ~1 in 3 lessons shows a quiz overlay
+  // when the video ends — a stable pseudo-random pick per lesson (not
+  // re-rolled on every render), so it feels occasional, not predictable,
+  // without ever being mandatory to keep scrolling.
+  const showsQuiz = hashToBucket(lesson.id) % 3 === 0
+
+  const [videoEnded, setVideoEnded] = useState(false)
+  const [quizStep, setQuizStep] = useState(0) // 0 = first question, 1 = second
   const [answers, setAnswers] = useState<number[]>([])
-  const [result, setResult] = useState<'idle' | 'correct' | 'wrong' | 'earned'>('idle')
-  const [pointsEarned, setPointsEarned] = useState(0)
+  const [toast, setToast] = useState<string | null>(null)
+  const [rewardGiven, setRewardGiven] = useState(false)
   const [showComments, setShowComments] = useState(false)
 
-  function selectAnswer(qIndex: number, optIndex: number) {
-    const next = [...answers]
-    next[qIndex] = optIndex
-    setAnswers(next)
+  async function handleVideoEnded() {
+    if (rewardGiven) return
+    setVideoEnded(true)
+
+    if (!showsQuiz) {
+      // No quiz this time — just a small, silent watch reward.
+      const { data, error } = await supabase.rpc('award_watch_reward', { p_lesson_id: lesson.id })
+      setRewardGiven(true)
+      if (!error && typeof data === 'number' && data > 0) {
+        setToast(`+${data} Coins for watching`)
+        setTimeout(() => setToast(null), 2000)
+      }
+    }
   }
 
-  async function submitQuiz() {
-    const allCorrect = lesson.quiz_questions.every(
-      (q, i) => answers[i] === q.correct_index
-    )
-    if (!allCorrect) {
-      setResult('wrong')
+  async function answerQuiz(optionIndex: number) {
+    const isLast = quizStep === lesson.quiz_questions.length - 1
+    const nextAnswers = [...answers, optionIndex]
+    setAnswers(nextAnswers)
+
+    if (!isLast) {
+      setQuizStep(quizStep + 1)
       return
     }
-    setResult('correct')
 
-    const { data, error } = await supabase.rpc('complete_lesson', {
-      p_lesson_id: lesson.id,
-    })
-    if (!error && typeof data === 'number') {
-      setPointsEarned(data)
-      setResult('earned')
+    // All questions answered — score it.
+    const allCorrect = lesson.quiz_questions.every((q, i) => nextAnswers[i] === q.correct_index)
+    setRewardGiven(true)
+    setVideoEnded(false) // hide the overlay, whatever the result
+
+    if (allCorrect) {
+      const { data, error } = await supabase.rpc('complete_lesson', { p_lesson_id: lesson.id })
+      if (!error && typeof data === 'number') {
+        setToast(`✓ +${data} Coins earned!`)
+      }
+    } else {
+      setToast('Not quite — koi baat nahi, aage badho')
     }
+    setTimeout(() => setToast(null), 2200)
   }
+
+  function skipQuiz() {
+    setVideoEnded(false)
+    setRewardGiven(true)
+  }
+
+  const currentQuestion = lesson.quiz_questions[quizStep]
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-      <div className="aspect-[9/16] bg-stone-200 flex items-center justify-center text-stone-400 text-sm">
+      <div className="relative aspect-[9/16] bg-stone-200">
         {lesson.video_url ? (
-          <video src={lesson.video_url} controls className="w-full h-full object-cover" />
+          <video
+            src={lesson.video_url}
+            controls
+            onEnded={handleVideoEnded}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          '1-min maker video'
+          <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm">
+            1-min maker video
+          </div>
+        )}
+
+        {/* 1-tap poll-style quiz overlay — appears only on video end, only
+            for the ~1-in-3 lessons chosen for this session, and can be
+            skipped without any penalty beyond not earning the bonus. */}
+        {videoEnded && showsQuiz && currentQuestion && !rewardGiven && (
+          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center px-6">
+            <p className="text-white text-sm font-semibold text-center mb-3">
+              {currentQuestion.question}
+            </p>
+            <div className="w-full space-y-2">
+              {currentQuestion.options.map((opt, oi) => (
+                <button
+                  key={oi}
+                  onClick={() => answerQuiz(oi)}
+                  className="w-full bg-white/95 hover:bg-white text-stone-900 font-semibold text-sm py-2.5 rounded-full"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <button onClick={skipQuiz} className="text-white/70 text-xs mt-4 underline">
+              Skip
+            </button>
+          </div>
+        )}
+
+        {/* Reward toast */}
+        {toast && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-mehendi text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg">
+            {toast}
+          </div>
         )}
       </div>
 
@@ -283,64 +353,26 @@ function LessonCard({
             <MessageCircle size={20} className="text-stone-400" />
             <span className="text-xs text-stone-600">{commentCount}</span>
           </button>
+          <span className="text-[10px] text-stone-400 ml-auto">
+            {showsQuiz ? `Quiz on this one · +${lesson.points_reward} Coins` : `+${lesson.watch_reward} Coins for watching`}
+          </span>
         </div>
 
         {showComments && <CommentsPanel lessonId={lesson.id} onCommentAdded={onCommentAdded} />}
-
-        {!showQuiz && result !== 'earned' && (
-          <button
-            onClick={() => setShowQuiz(true)}
-            className="mt-3 w-full bg-clay text-white font-semibold py-2.5 rounded-xl text-sm"
-          >
-            Take Quiz · +{lesson.points_reward} Coins
-          </button>
-        )}
-
-        {showQuiz && result !== 'earned' && (
-          <div className="mt-3 space-y-3">
-            {lesson.quiz_questions.map((q, qi) => (
-              <div key={qi}>
-                <p className="text-sm font-medium text-stone-800">{q.question}</p>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {q.options.map((opt, oi) => (
-                    <button
-                      key={oi}
-                      onClick={() => selectAnswer(qi, oi)}
-                      className={`text-xs px-3 py-1.5 rounded-full border ${
-                        answers[qi] === oi
-                          ? 'bg-clay text-white border-clay'
-                          : 'border-stone-300 text-stone-600'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {result === 'wrong' && (
-              <p className="text-xs text-red-600">Not quite — check the video again and retry.</p>
-            )}
-
-            <button
-              onClick={submitQuiz}
-              disabled={answers.length < lesson.quiz_questions.length}
-              className="w-full bg-stone-900 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-40"
-            >
-              Submit Answers
-            </button>
-          </div>
-        )}
-
-        {result === 'earned' && (
-          <p className="mt-3 text-sm font-semibold text-mehendi bg-mehendi-light rounded-xl px-3 py-2 text-center">
-            ✓ +{pointsEarned} Sthamly Coins earned!
-          </p>
-        )}
       </div>
     </div>
   )
+}
+
+// Small stable hash so the same lesson always lands in the same
+// quiz/no-quiz bucket for a given session — not re-randomized on
+// every re-render, but still varies lesson to lesson.
+function hashToBucket(id: string): number {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  }
+  return hash
 }
 
 type Comment = { id: string; body: string; created_at: string; profiles: { full_name: string | null } | null }

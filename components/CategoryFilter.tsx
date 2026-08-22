@@ -50,10 +50,10 @@ export default function CategoryFilter({
         </button>
       ))}
       <Link
-        href="/muhnadi"
+        href="/announcements"
         className="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 bg-indigobrand-light text-indigobrand"
       >
-        📢 मुनादी
+        📢 Announcements
       </Link>
     </div>
   )

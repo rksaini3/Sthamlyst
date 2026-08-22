@@ -12,7 +12,7 @@ type Announcement = {
   profiles: { full_name: string | null; seller_verified: boolean } | null
 }
 
-export default function MuhnadiPage() {
+export default function AnnouncementsPage() {
   const { user } = useAuth()
   const [items, setItems] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,7 +60,7 @@ export default function MuhnadiPage() {
   return (
     <div className="max-w-md mx-auto pb-24 min-h-dvh">
       <header className="sticky top-0 bg-white/95 backdrop-blur px-4 py-3 border-b border-stone-100 z-10">
-        <h1 className="text-lg font-heading font-semibold text-clay">मुनादी</h1>
+        <h1 className="text-lg font-heading font-semibold text-clay">Announcements</h1>
         <p className="text-xs text-stone-500">Daily updates from makers — no video needed</p>
       </header>
 
