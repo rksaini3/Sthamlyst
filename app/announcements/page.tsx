@@ -3,9 +3,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import ShareButton from '@/components/ShareButton'
+import OptionsMenu from '@/components/OptionsMenu'
+import EmojiPicker from '@/components/EmojiPicker'
 
 type Announcement = {
   id: string
+  user_id: string
   body: string
   image_url: string | null
   created_at: string
@@ -27,11 +31,17 @@ export default function AnnouncementsPage() {
   async function load() {
     const { data } = await supabase
       .from('announcements')
-      .select('id, body, image_url, created_at, profiles:user_id ( full_name, seller_verified )')
+      .select('id, user_id, body, image_url, created_at, profiles:user_id ( full_name, seller_verified )')
       .order('created_at', { ascending: false })
       .limit(50)
     if (data) setItems(data as unknown as Announcement[])
     setLoading(false)
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Ye announcement delete kar dein?')) return
+    setItems((prev) => prev.filter((a) => a.id !== id))
+    await supabase.rpc('delete_announcement', { p_announcement_id: id })
   }
 
   async function handlePost() {
@@ -81,13 +91,16 @@ export default function AnnouncementsPage() {
               onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
               className="text-xs"
             />
-            <button
-              onClick={handlePost}
-              disabled={posting || !text.trim()}
-              className="bg-clay text-white text-xs font-semibold px-4 py-2 rounded-full disabled:opacity-50"
-            >
-              {posting ? 'Posting…' : 'Post'}
-            </button>
+            <div className="flex items-center gap-2">
+              <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
+              <button
+                onClick={handlePost}
+                disabled={posting || !text.trim()}
+                className="bg-clay text-white text-xs font-semibold px-4 py-2 rounded-full disabled:opacity-50"
+              >
+                {posting ? 'Posting…' : 'Post'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -96,18 +109,24 @@ export default function AnnouncementsPage() {
         {loading && <p className="text-center text-stone-400 text-sm">Loading…</p>}
         {items.map((a) => (
           <div key={a.id} className="border-b border-stone-100 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-indigobrand-light flex items-center justify-center text-xs font-bold text-indigobrand">
-                {a.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-indigobrand-light flex items-center justify-center text-xs font-bold text-indigobrand">
+                  {a.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-stone-800">
+                    {a.profiles?.full_name || 'Sthamly User'}
+                    {a.profiles?.seller_verified && <span className="text-mehendi ml-1">✓</span>}
+                  </p>
+                  <p className="text-[10px] text-stone-400">
+                    {new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-stone-800">
-                  {a.profiles?.full_name || 'Sthamly User'}
-                  {a.profiles?.seller_verified && <span className="text-mehendi ml-1">✓</span>}
-                </p>
-                <p className="text-[10px] text-stone-400">
-                  {new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </p>
+              <div className="flex items-center gap-1">
+                <ShareButton url="/announcements" title="Sthamly Announcement" text={a.body} />
+                <OptionsMenu isOwner={!!user && a.user_id === user.id} onDelete={() => handleDelete(a.id)} />
               </div>
             </div>
             <p className="text-sm text-stone-700 mt-2">{a.body}</p>

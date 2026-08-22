@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import PageSkeleton from './PageSkeleton'
+import ShareButton from './ShareButton'
+import OptionsMenu from './OptionsMenu'
+import EmojiPicker from './EmojiPicker'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -43,8 +46,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
   const [myFollows, setMyFollows] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function loadLessons() {
+  async function loadLessons() {
       setLoading(true)
       let query = supabase
         .from('lessons')
@@ -103,7 +105,9 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
       setMyFollows(new Set((followsRes.data || []).map((f: any) => f.following_id)))
 
       setLoading(false)
-    }
+  }
+
+  useEffect(() => {
     loadLessons()
   }, [themeFilter, user])
 
@@ -154,6 +158,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
           onToggleLike={() => toggleLike(lesson.id)}
           onToggleFollow={() => lesson.creator_id && toggleFollow(lesson.creator_id)}
           onCommentAdded={() => bumpCommentCount(lesson.id)}
+          onDeleted={loadLessons}
         />
       ))}
       {lessons.length === 0 && (
@@ -165,7 +170,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
 
 function LessonCard({
   lesson, taggedProduct, creator, liked, likeCount, commentCount, following, isMe,
-  onToggleLike, onToggleFollow, onCommentAdded,
+  onToggleLike, onToggleFollow, onCommentAdded, onDeleted,
 }: {
   lesson: Lesson
   taggedProduct?: TaggedProduct
@@ -178,12 +183,19 @@ function LessonCard({
   onToggleLike: () => void
   onToggleFollow: () => void
   onCommentAdded: () => void
+  onDeleted: () => void
 }) {
   // Variable quiz frequency: only ~1 in 3 lessons shows a quiz overlay
   // when the video ends — a stable pseudo-random pick per lesson (not
   // re-rolled on every render), so it feels occasional, not predictable,
   // without ever being mandatory to keep scrolling.
   const showsQuiz = hashToBucket(lesson.id) % 3 === 0
+
+  async function handleDelete() {
+    if (!confirm('Ye reel delete kar dein?')) return
+    await supabase.rpc('delete_lesson', { p_lesson_id: lesson.id })
+    onDeleted()
+  }
 
   const [videoEnded, setVideoEnded] = useState(false)
   const [quizStep, setQuizStep] = useState(0) // 0 = first question, 1 = second
@@ -311,6 +323,10 @@ function LessonCard({
               {following ? 'Following' : 'Follow'}
             </button>
           )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <ShareButton url="/" title={lesson.title} text={`${lesson.title} — Sthamly par dekho`} />
+            <OptionsMenu isOwner={isMe} onDelete={handleDelete} />
+          </div>
         </div>
 
         <h2 className="font-bold text-stone-900 mt-2">{lesson.title}</h2>
@@ -375,7 +391,7 @@ function hashToBucket(id: string): number {
   return hash
 }
 
-type Comment = { id: string; body: string; created_at: string; profiles: { full_name: string | null } | null }
+type Comment = { id: string; user_id: string; body: string; created_at: string; profiles: { full_name: string | null } | null }
 
 function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onCommentAdded: () => void }) {
   const { user } = useAuth()
@@ -388,7 +404,7 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
     async function load() {
       const { data } = await supabase
         .from('comments')
-        .select('id, body, created_at, profiles:user_id ( full_name )')
+        .select('id, user_id, body, created_at, profiles:user_id ( full_name )')
         .eq('lesson_id', lessonId)
         .order('created_at', { ascending: true })
       if (data) setComments(data as unknown as Comment[])
@@ -402,11 +418,16 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
     setPosting(true)
     const { error } = await supabase.rpc('add_comment', { p_lesson_id: lessonId, p_body: text.trim() })
     if (!error) {
-      setComments((prev) => [...prev, { id: Math.random().toString(), body: text.trim(), created_at: new Date().toISOString(), profiles: { full_name: 'You' } }])
+      setComments((prev) => [...prev, { id: Math.random().toString(), user_id: user.id, body: text.trim(), created_at: new Date().toISOString(), profiles: { full_name: 'You' } }])
       onCommentAdded()
       setText('')
     }
     setPosting(false)
+  }
+
+  async function deleteComment(id: string) {
+    setComments((prev) => prev.filter((c) => c.id !== id))
+    await supabase.rpc('delete_comment', { p_comment_id: id })
   }
 
   return (
@@ -415,9 +436,14 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
         <p className="text-xs text-stone-400">Loading comments…</p>
       ) : (
         comments.map((c) => (
-          <div key={c.id} className="text-xs">
-            <span className="font-semibold text-stone-800">{c.profiles?.full_name || 'User'}: </span>
-            <span className="text-stone-600">{c.body}</span>
+          <div key={c.id} className="flex items-start justify-between gap-2 text-xs">
+            <p>
+              <span className="font-semibold text-stone-800">{c.profiles?.full_name || 'User'}: </span>
+              <span className="text-stone-600">{c.body}</span>
+            </p>
+            {user && c.user_id === user.id && (
+              <button onClick={() => deleteComment(c.id)} className="text-stone-400 flex-shrink-0">×</button>
+            )}
           </div>
         ))
       )}
@@ -432,6 +458,7 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
             placeholder="Add a comment…"
             className="flex-1 border border-stone-300 rounded-full px-3 py-1.5 text-xs"
           />
+          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
           <button onClick={post} disabled={posting} className="text-xs font-semibold text-clay">
             Post
           </button>

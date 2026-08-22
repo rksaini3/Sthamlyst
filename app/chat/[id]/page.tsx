@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
+import EmojiPicker from '@/components/EmojiPicker'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import { ArrowLeft, Camera, Image as ImageIcon, Mic, Send, Square } from 'lucide-react'
@@ -287,7 +288,7 @@ export default function ChatThreadPage() {
             placeholder="Message…"
             className="flex-1 border border-stone-300 rounded-full px-4 py-2 text-sm min-w-0"
           />
-
+          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
           {text.trim() || offer ? (
             <button
               onClick={() => sendMessage()}

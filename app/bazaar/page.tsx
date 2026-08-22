@@ -6,11 +6,14 @@ import { ShoppingBag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import PageSkeleton from '@/components/PageSkeleton'
+import ShareButton from '@/components/ShareButton'
+import OptionsMenu from '@/components/OptionsMenu'
 
 type Product = {
   id: string
   title: string
   description: string | null
+  maker_id: string | null
   maker_name: string
   maker_verified?: boolean
   maker_city: string
@@ -57,28 +60,32 @@ export default function BazaarPage() {
     }
   }
 
+  async function loadProducts() {
+    const { data: productData } = await supabase
+      .from('products')
+      .select('*, profiles:maker_id ( seller_verified )')
+      .eq('is_active', true)
+
+    let mapped: Product[] = []
+    if (productData) {
+      mapped = productData.map((p: any) => ({
+        ...p,
+        maker_verified: p.profiles?.seller_verified ?? false,
+      }))
+      setProducts(mapped)
+    }
+
+    await refreshProfile()
+    if (user) {
+      const productMap = Object.fromEntries(mapped.map((p) => [p.id, p]))
+      await refreshCart(productMap)
+    }
+  }
+
   useEffect(() => {
     if (authLoading) return
     async function load() {
-      const { data: productData } = await supabase
-        .from('products')
-        .select('*, profiles:maker_id ( seller_verified )')
-        .eq('is_active', true)
-
-      let mapped: Product[] = []
-      if (productData) {
-        mapped = productData.map((p: any) => ({
-          ...p,
-          maker_verified: p.profiles?.seller_verified ?? false,
-        }))
-        setProducts(mapped)
-      }
-
-      await refreshProfile()
-      if (user) {
-        const productMap = Object.fromEntries(mapped.map((p) => [p.id, p]))
-        await refreshCart(productMap)
-      }
+      await loadProducts()
       setLoading(false)
     }
     load()
@@ -164,6 +171,7 @@ export default function BazaarPage() {
             pointsBalance={pointsBalance}
             onRedeemed={refreshProfile}
             onAddToCart={() => addToCart(product.id)}
+            onChanged={loadProducts}
           />
         ))}
         {filtered.length === 0 && (
@@ -260,11 +268,13 @@ function ProductCard({
   pointsBalance,
   onRedeemed,
   onAddToCart,
+  onChanged,
 }: {
   product: Product
   pointsBalance: number | null
   onRedeemed: () => void
   onAddToCart: () => void
+  onChanged: () => void
 }) {
   const [pointsToUse, setPointsToUse] = useState(0)
   const [confirmedDiscount, setConfirmedDiscount] = useState(0)
@@ -273,8 +283,16 @@ function ProductCard({
   const [booking, setBooking] = useState(false)
   const [booked, setBooked] = useState(false)
   const [added, setAdded] = useState(false)
+  const [editing, setEditing] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
+  const isOwner = !!user && product.maker_id === user.id
+
+  async function handleDelete() {
+    if (!confirm('Ye product delete kar dein?')) return
+    await supabase.rpc('delete_product', { p_product_id: product.id })
+    onChanged()
+  }
 
   const cap = Math.min(product.max_discount_points, pointsBalance ?? 0)
 
@@ -339,14 +357,28 @@ function ProductCard({
       </div>
 
       <div className="p-4">
-        <p className="text-[11px] text-stone-500">
-          by <span className="font-semibold text-stone-700">{product.maker_name}</span> · {product.maker_city}
-          {product.maker_verified && (
-            <span className="ml-1.5 text-mehendi font-semibold">✓ Verified</span>
-          )}
-        </p>
+        <div className="flex items-start justify-between">
+          <p className="text-[11px] text-stone-500">
+            by <span className="font-semibold text-stone-700">{product.maker_name}</span> · {product.maker_city}
+            {product.maker_verified && (
+              <span className="ml-1.5 text-mehendi font-semibold">✓ Verified</span>
+            )}
+          </p>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <ShareButton url="/bazaar" title={product.title} text={`${product.title} — ₹${product.price} on Sthamly`} />
+            <OptionsMenu isOwner={isOwner} onEdit={() => setEditing(true)} onDelete={handleDelete} />
+          </div>
+        </div>
         <h2 className="font-bold text-stone-900 mt-1">{product.title}</h2>
         <p className="text-sm text-stone-500 mt-1">{product.description}</p>
+
+        {editing && (
+          <EditProductModal
+            product={product}
+            onClose={() => setEditing(false)}
+            onSaved={() => { setEditing(false); onChanged() }}
+          />
+        )}
         {product.is_service && product.duration_minutes && (
           <p className="text-[11px] text-stone-400 mt-1">⏱ {product.duration_minutes} min</p>
         )}
@@ -420,6 +452,67 @@ function ProductCard({
             className="flex-1 border border-clay text-clay font-semibold py-2.5 rounded-xl text-sm"
           >
             💬 मोल-भाव करें
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditProductModal({
+  product, onClose, onSaved,
+}: { product: Product; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(product.title)
+  const [description, setDescription] = useState(product.description || '')
+  const [price, setPrice] = useState(String(product.price))
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    await supabase.rpc('update_product', {
+      p_product_id: product.id,
+      p_title: title,
+      p_description: description,
+      p_price: Number(price),
+      p_category: product.category,
+      p_max_discount_points: product.max_discount_points,
+    })
+    setSaving(false)
+    onSaved()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-30 flex items-center justify-center px-6" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-4 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-bold text-stone-900 mb-3">Edit Product</h3>
+        <div className="space-y-2">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm"
+            placeholder="Title"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm"
+            placeholder="Description"
+            rows={2}
+          />
+          <input
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm"
+            placeholder="Price"
+          />
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button onClick={onClose} className="flex-1 border border-stone-300 text-stone-600 py-2 rounded-xl text-sm">
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving} className="flex-1 bg-clay text-white py-2 rounded-xl text-sm disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
