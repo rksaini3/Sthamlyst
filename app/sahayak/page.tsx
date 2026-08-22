@@ -30,6 +30,7 @@ export default function SahayakPage() {
   const [listening, setListening] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(true)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const SpeechRecognition =
@@ -50,6 +51,10 @@ export default function SahayakPage() {
     recognition.onend = () => setListening(false)
     recognitionRef.current = recognition
   }, [])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, thinking])
 
   function toggleVoice() {
     if (!recognitionRef.current) return
@@ -89,8 +94,13 @@ export default function SahayakPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-dvh flex flex-col pb-4">
-      <div className="px-4 py-3 bg-violet-light border-b border-violet/20 flex items-center gap-2">
+    // NOTE: height is now `h-[100dvh]` fixed to the viewport instead of
+    // `min-h-dvh` (which could grow taller than the screen and push the
+    // input bar below the fold, behind the app's global bottom nav).
+    // `pb-16` reserves space for that global bottom nav bar so our own
+    // input row never sits underneath it.
+    <div className="max-w-md mx-auto h-[100dvh] flex flex-col pb-16 overflow-hidden">
+      <div className="px-4 py-3 bg-violet-light border-b border-violet/20 flex items-center gap-2 shrink-0">
         <Sparkles size={20} className="text-violet" />
         <div>
           <p className="text-sm font-bold text-violet">Sthamly Sahayak</p>
@@ -98,7 +108,7 @@ export default function SahayakPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
@@ -114,7 +124,9 @@ export default function SahayakPage() {
         {listening && <p className="text-xs text-violet font-semibold">🎙️ Sun raha hoon… bolo</p>}
       </div>
 
-      <div className="px-4 pt-2 border-t border-stone-100">
+      {/* sticky + high z-index so this bar always renders above the
+          global bottom navigation instead of being covered by it */}
+      <div className="sticky bottom-0 z-50 bg-white px-4 pt-2 pb-3 border-t border-stone-100 shrink-0">
         <div className="flex items-center gap-2 bg-stone-50 rounded-full border border-stone-200 pl-4 pr-1.5 py-1.5">
           <input
             value={input}
@@ -128,6 +140,7 @@ export default function SahayakPage() {
               onClick={toggleVoice}
               className={`p-2 rounded-full flex-shrink-0 ${listening ? 'bg-red-600 text-white' : 'text-violet'}`}
               aria-label="Voice input"
+              type="button"
             >
               {listening ? <Square size={16} /> : <Mic size={18} />}
             </button>
@@ -137,6 +150,7 @@ export default function SahayakPage() {
             disabled={thinking || !input.trim()}
             className="bg-violet text-white p-2.5 rounded-full flex-shrink-0 disabled:opacity-40"
             aria-label="Send"
+            type="button"
           >
             <Send size={16} />
           </button>
