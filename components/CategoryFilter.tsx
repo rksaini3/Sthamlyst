@@ -55,6 +55,18 @@ export default function CategoryFilter({
       >
         📢 Announcements
       </Link>
+      <Link
+        href="/discover"
+        className="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 bg-violet-light text-violet"
+      >
+        📍 Near You
+      </Link>
+      <Link
+        href="/campaigns"
+        className="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 bg-mehendi-light text-mehendi"
+      >
+        📋 Campaigns
+      </Link>
     </div>
   )
 }

@@ -18,13 +18,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [isBusiness, setIsBusiness] = useState(false)
 
   useEffect(() => {
     if (authLoading || !user) { setLoading(false); return }
     async function load() {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, city, language, notification_prefs')
+        .select('full_name, city, language, notification_prefs, is_business')
         .eq('id', user!.id)
         .single()
       if (data) {
@@ -32,6 +33,7 @@ export default function SettingsPage() {
         setCity(data.city || '')
         setLanguage(data.language || 'hi-en')
         setPrefs(data.notification_prefs || { reward: true, order: true, social: true, learning: true })
+        setIsBusiness(data.is_business || false)
       }
       setLoading(false)
     }
@@ -47,6 +49,7 @@ export default function SettingsPage() {
       p_notification_prefs: prefs,
       p_language: language,
     })
+    await supabase.rpc('set_business_mode', { p_enabled: isBusiness })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -119,6 +122,23 @@ export default function SettingsPage() {
           <p className="text-[11px] text-stone-400 mt-1.5">
             Saves your preference — full app translation is being rolled out screen by screen.
           </p>
+        </section>
+
+        {/* Business Mode */}
+        <section>
+          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-2">Business Account</h2>
+          <div className="bg-white border border-stone-200 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-stone-800">🏢 Business Mode</p>
+              <p className="text-[11px] text-stone-500">Post campaigns, find local creators for your brand</p>
+            </div>
+            <button
+              onClick={() => setIsBusiness(!isBusiness)}
+              className={`w-11 h-6 rounded-full flex-shrink-0 relative transition-colors ${isBusiness ? 'bg-clay' : 'bg-stone-300'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${isBusiness ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
         </section>
 
         {/* Notifications */}

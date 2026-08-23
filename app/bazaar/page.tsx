@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/AuthProvider'
 import PageSkeleton from '@/components/PageSkeleton'
 import ShareButton from '@/components/ShareButton'
 import OptionsMenu from '@/components/OptionsMenu'
+import { startCheckout } from '@/lib/razorpay-client'
 
 type Product = {
   id: string
@@ -198,6 +199,15 @@ export default function BazaarPage() {
           total={cartTotal}
           onClose={() => setShowCart(false)}
           onSetQuantity={setQuantity}
+          onCheckoutComplete={async () => {
+            setShowCart(false)
+            for (const line of cart) {
+              await supabase.rpc('remove_from_cart', { p_product_id: line.product_id })
+            }
+            await refreshCart()
+            await refreshProfile()
+            alert('✓ Order confirmed! Seller will contact you soon.')
+          }}
         />
       )}
     </div>
@@ -205,8 +215,47 @@ export default function BazaarPage() {
 }
 
 function CartSheet({
-  cart, total, onClose, onSetQuantity,
-}: { cart: CartLine[]; total: number; onClose: () => void; onSetQuantity: (id: string, qty: number) => void }) {
+  cart, total, onClose, onSetQuantity, onCheckoutComplete,
+}: { cart: CartLine[]; total: number; onClose: () => void; onSetQuantity: (id: string, qty: number) => void; onCheckoutComplete: () => void }) {
+  const { user } = useAuth()
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState('')
+
+  async function handleCheckout() {
+    if (!user) return
+    setCheckingOut(true)
+    setCheckoutError('')
+
+    try {
+      const orderIds: string[] = []
+      for (const line of cart) {
+        const { data, error } = await supabase.rpc('create_order', {
+          p_product_id: line.product_id,
+          p_quantity: line.quantity,
+          p_discount_amount: 0,
+        })
+        if (error || !data) throw new Error(error?.message || 'Order create fail')
+        orderIds.push(data)
+      }
+
+      await startCheckout({
+        sthamlyOrderIds: orderIds,
+        buyerEmail: user.email,
+        onSuccess: () => {
+          setCheckingOut(false)
+          onCheckoutComplete()
+        },
+        onFailure: (msg) => {
+          setCheckingOut(false)
+          setCheckoutError(msg)
+        },
+      })
+    } catch (e: any) {
+      setCheckingOut(false)
+      setCheckoutError(e.message || 'Checkout fail ho gaya')
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-30 flex items-end" onClick={onClose}>
       <div
@@ -253,9 +302,14 @@ function CartSheet({
               <span className="text-sm font-semibold text-stone-700">Total</span>
               <span className="text-lg font-bold text-mehendi">₹{total.toFixed(0)}</span>
             </div>
-            <button className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm">
-              Checkout (coming soon)
+            <button
+              onClick={handleCheckout}
+              disabled={checkingOut}
+              className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
+            >
+              {checkingOut ? 'Processing…' : `Pay ₹${total.toFixed(0)} via Razorpay`}
             </button>
+            {checkoutError && <p className="text-xs text-red-600 mt-2 text-center">{checkoutError}</p>}
           </div>
         )}
       </div>
@@ -366,6 +420,20 @@ function ProductCard({
           </p>
           <div className="flex items-center gap-1 flex-shrink-0">
             <ShareButton url="/bazaar" title={product.title} text={`${product.title} — ₹${product.price} on Sthamly`} />
+            {!isOwner && user && (
+              <button
+                onClick={async () => {
+                  const reason = prompt('Kya problem hai is listing mein?')
+                  if (reason) {
+                    await supabase.rpc('report_listing', { p_product_id: product.id, p_reason: reason })
+                    alert('Report bhej diya. Dhanyawad.')
+                  }
+                }}
+                className="text-stone-400 text-[10px] font-semibold px-2"
+              >
+                🚩
+              </button>
+            )}
             <OptionsMenu isOwner={isOwner} onEdit={() => setEditing(true)} onDelete={handleDelete} />
           </div>
         </div>

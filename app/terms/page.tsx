@@ -81,6 +81,26 @@ export default function TermsPage() {
         Platform, including disputes between buyers and sellers.
       </Section>
 
+      <Section title="9A. Intermediary Status (Safe Harbour — IT Act, Section 79)">
+        Sthamly is an <strong>intermediary</strong> as defined under Section 2(1)(w) of the
+        Information Technology Act, 2000, and is entitled to the &quot;safe harbour&quot;
+        protection under <strong>Section 79</strong> of that Act. Sthamly does not itself create,
+        author, verify, or vouch for the accuracy, quality, legality, or safety of any product,
+        service, reel, comment, announcement, or other content posted by users, creators, or
+        sellers on the Platform. Sthamly:
+        <ul className="list-disc pl-5 mt-1 space-y-1">
+          <li>merely provides the technology platform connecting buyers, sellers, and creators;</li>
+          <li>does not select, initiate, or modify user-generated content;</li>
+          <li>observes due diligence as required under the IT (Intermediary Guidelines and Digital
+            Media Ethics Code) Rules, 2021, including maintaining a Grievance Officer and acting on
+            valid takedown requests; and</li>
+          <li>disclaims liability for any third-party content, subject to fulfilling its due
+            diligence obligations under law.</li>
+        </ul>
+        Nothing in this section limits a user's own liability for content they post, or for
+        products/services they list or provide through the Platform.
+      </Section>
+
       <Section title="10. Grievance Officer">
         In accordance with the Information Technology (Intermediary Guidelines and Digital Media
         Ethics Code) Rules, 2021, grievances regarding content on the Platform may be addressed

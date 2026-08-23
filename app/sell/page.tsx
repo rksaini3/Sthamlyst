@@ -16,13 +16,22 @@ export default function SellPage() {
   const [durationMinutes, setDurationMinutes] = useState('60')
   const [category, setCategory] = useState('Clay Crafts & Home Decor')
   const [maxDiscountPoints, setMaxDiscountPoints] = useState('50')
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false)
+  const [verificationDoc, setVerificationDoc] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+
+  const SENSITIVE_CATEGORIES = ['Finance', 'Health', 'Home Services']
+  const needsVerification = SENSITIVE_CATEGORIES.includes(category)
 
   async function handleSubmit() {
     setError('')
     if (!imageFile || !title || !price) {
       setError('Photo, title, aur price bharo.')
+      return
+    }
+    if (needsVerification && !disclaimerAccepted && !verificationDoc) {
+      setError('Ye category (Finance/Health/Home Services) ke liye disclaimer checkbox tick karo, ya verification document upload karo.')
       return
     }
     setUploading(true)
@@ -44,6 +53,16 @@ export default function SellPage() {
 
     const { data: publicUrlData } = supabase.storage.from('products').getPublicUrl(filePath)
 
+    let verificationDocUrl: string | null = null
+    if (verificationDoc) {
+      const docPath = `${user.id}/verify-${Date.now()}-${verificationDoc.name}`
+      const { error: docError } = await supabase.storage.from('products').upload(docPath, verificationDoc)
+      if (!docError) {
+        const { data: docUrlData } = supabase.storage.from('products').getPublicUrl(docPath)
+        verificationDocUrl = docUrlData.publicUrl
+      }
+    }
+
     const { error: rpcError } = await supabase.rpc('create_product', {
       p_title: title,
       p_description: description,
@@ -53,6 +72,8 @@ export default function SellPage() {
       p_max_discount_points: Number(maxDiscountPoints) || 0,
       p_is_service: listingType === 'service',
       p_duration_minutes: listingType === 'service' ? Number(durationMinutes) || null : null,
+      p_disclaimer_accepted: disclaimerAccepted,
+      p_verification_doc_url: verificationDocUrl,
     })
 
     setUploading(false)
@@ -178,10 +199,40 @@ export default function SellPage() {
                 <option>Mehndi</option>
                 <option>Tutoring</option>
                 <option>Events</option>
+                <option>Finance</option>
+                <option>Health</option>
+                <option>Home Services</option>
               </>
             )}
           </select>
         </div>
+
+        {needsVerification && (
+          <div className="border border-turmeric/40 bg-turmeric-light rounded-xl p-3">
+            <p className="text-sm font-semibold text-turmeric mb-1">⚠️ Verification Required</p>
+            <p className="text-[11px] text-turmeric/80 mb-2">
+              Finance, Health, aur Home Services jaisi sensitive categories mein listing ke liye
+              disclaimer accept karo, ya apna verification document (license/certificate) upload karo.
+            </p>
+            <label className="flex items-start gap-2 text-xs text-stone-700 mb-2">
+              <input
+                type="checkbox"
+                checked={disclaimerAccepted}
+                onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                className="mt-0.5"
+              />
+              Main confirm karta/karti hoon ki main is service ke liye qualified hoon, aur Sthamly
+              iski responsibility nahi leta.
+            </label>
+            <p className="text-[11px] text-stone-500 mb-1">Ya document upload karo:</p>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => setVerificationDoc(e.target.files?.[0] ?? null)}
+              className="text-xs"
+            />
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
