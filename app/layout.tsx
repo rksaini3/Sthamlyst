@@ -4,7 +4,9 @@ import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import GlobalHeader from '@/components/GlobalHeader'
+import ConnectivityToast from '@/components/ConnectivityToast'
 import { AuthProvider } from '@/lib/AuthProvider'
+import { ThemeProvider } from '@/lib/ThemeProvider'
 
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -48,12 +50,15 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className="min-h-dvh bg-white font-body">
-        <AuthProvider>
-          <GlobalHeader />
-          {children}
-          <BottomNav />
-        </AuthProvider>
+      <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body">
+        <ThemeProvider>
+          <AuthProvider>
+            <GlobalHeader />
+            <ConnectivityToast />
+            {children}
+            <BottomNav />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

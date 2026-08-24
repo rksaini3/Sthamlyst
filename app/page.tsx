@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import StoriesRow from '@/components/StoriesRow'
 import CategoryFilter from '@/components/CategoryFilter'
 import ReelFeed from '@/components/ReelFeed'
+import MohallaScoreCard from '@/components/MohallaScoreCard'
+import SathiStreakCard from '@/components/SathiStreakCard'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -23,6 +25,7 @@ export default function Home() {
       if (data) setTotalSaved(data.total_saved_rupees)
     }
     loadSavings()
+    supabase.rpc('mark_sathi_active_today')
   }, [authLoading, user])
 
   return (
@@ -38,6 +41,8 @@ export default function Home() {
       )}
 
       <StoriesRow />
+      <MohallaScoreCard />
+      <SathiStreakCard />
       <CategoryFilter activeTheme={activeTheme} onSelect={setActiveTheme} />
       <ReelFeed themeFilter={activeTheme} />
     </div>

@@ -6,6 +6,7 @@ import PageSkeleton from '@/components/PageSkeleton'
 import { Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import CreatorIdentitySetup from '@/components/CreatorIdentitySetup'
 
 type Profile = {
   full_name: string | null
@@ -16,6 +17,9 @@ type Profile = {
   is_creator: boolean
   seller_verified: boolean
   skill_badges: string[]
+  username: string | null
+  bio: string | null
+  avatar_url: string | null
 }
 
 export default function ProfilePage() {
@@ -24,6 +28,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [debugError, setDebugError] = useState('')
+  const [showIdentitySetup, setShowIdentitySetup] = useState(false)
 
   useEffect(() => {
     // Re-runs automatically whenever the auth state actually resolves
@@ -44,7 +49,7 @@ export default function ProfilePage() {
 
     let { data, error } = await supabase
       .from('profiles')
-      .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
+      .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url')
       .eq('id', user.id)
       .single()
 
@@ -57,7 +62,7 @@ export default function ProfilePage() {
       }
       const retry = await supabase
         .from('profiles')
-        .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges')
+        .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url')
         .eq('id', user.id)
         .single()
       data = retry.data
@@ -80,6 +85,13 @@ export default function ProfilePage() {
       p_is_creator: next.is_creator,
     })
     setSaving(false)
+
+    // Missing gap: turning Creator Mode on without ever setting an
+    // identity leaves the profile looking like an empty "R" avatar —
+    // prompt for handle/bio/photo right here, once.
+    if (field === 'is_creator' && value && !profile.username) {
+      setShowIdentitySetup(true)
+    }
   }
 
   if (loading || authLoading) return <PageSkeleton rows={1} />
@@ -131,11 +143,22 @@ export default function ProfilePage() {
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-amber-900">
-            {profile.full_name || 'Your Profile'}
-          </h1>
-          <p className="text-sm text-stone-500">{profile.city}</p>
+        <div className="flex items-center gap-3">
+          {profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-indigobrand-light flex items-center justify-center text-lg font-bold text-indigobrand">
+              {profile.full_name?.[0]?.toUpperCase() || 'R'}
+            </div>
+          )}
+          <div>
+            <h1 className="text-xl font-bold text-amber-900">
+              {profile.full_name || 'Your Profile'}
+            </h1>
+            {profile.username && <p className="text-xs text-stone-400">@{profile.username}</p>}
+            <p className="text-sm text-stone-500">{profile.city}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -153,6 +176,12 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      {user && (
+        <Link href={`/followers/${user.id}`} className="text-xs text-indigobrand font-semibold mt-2 inline-block">
+          Followers &amp; Following →
+        </Link>
+      )}
 
       <div className="mt-4 bg-mehendi text-white rounded-2xl p-4">
         <span className="text-xs font-medium opacity-90">Total Saved via Learning</span>
@@ -226,6 +255,13 @@ export default function ProfilePage() {
         <span>·</span>
         <Link href="/privacy" className="underline">Privacy Policy</Link>
       </div>
+
+      {showIdentitySetup && (
+        <CreatorIdentitySetup
+          onClose={() => setShowIdentitySetup(false)}
+          onSaved={() => { setShowIdentitySetup(false); load() }}
+        />
+      )}
     </div>
   )
 }

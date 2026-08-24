@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth()
   const [fullName, setFullName] = useState('')
   const [city, setCity] = useState('')
+  const [mohalla, setMohalla] = useState('')
   const [language, setLanguage] = useState('hi-en')
   const [prefs, setPrefs] = useState<NotifPrefs>({ reward: true, order: true, social: true, learning: true })
   const [loading, setLoading] = useState(true)
@@ -25,12 +26,13 @@ export default function SettingsPage() {
     async function load() {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, city, language, notification_prefs, is_business')
+        .select('full_name, city, language, notification_prefs, is_business, mohalla')
         .eq('id', user!.id)
         .single()
       if (data) {
         setFullName(data.full_name || '')
         setCity(data.city || '')
+        setMohalla(data.mohalla || '')
         setLanguage(data.language || 'hi-en')
         setPrefs(data.notification_prefs || { reward: true, order: true, social: true, learning: true })
         setIsBusiness(data.is_business || false)
@@ -50,6 +52,7 @@ export default function SettingsPage() {
       p_language: language,
     })
     await supabase.rpc('set_business_mode', { p_enabled: isBusiness })
+    await supabase.rpc('update_my_mohalla', { p_mohalla: mohalla })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -95,6 +98,19 @@ export default function SettingsPage() {
                 onChange={(e) => setCity(e.target.value)}
                 className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm mt-1"
               />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-stone-800">Mohalla / Local Area</label>
+              <input
+                value={mohalla}
+                onChange={(e) => setMohalla(e.target.value)}
+                placeholder="e.g. Civil Lines, Rani Bazar"
+                className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm mt-1"
+              />
+              <p className="text-[11px] text-stone-400 mt-1">
+                Aapke Mohalla ka collective weekly coin score dikhta hai — sabko fayda milta hai jab aapka
+                area target pura karta hai.
+              </p>
             </div>
           </div>
         </section>
