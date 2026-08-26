@@ -17,6 +17,7 @@ type Story = {
 type StoryGroup = {
   user_id: string
   full_name: string | null
+  avatar_url: string | null
   stories: Story[]
 }
 
@@ -32,7 +33,7 @@ export default function StoriesRow() {
   async function load() {
     const { data } = await supabase
       .from('stories')
-      .select('id, user_id, media_url, media_type, caption, created_at, profiles:user_id ( full_name )')
+      .select('id, user_id, media_url, media_type, caption, created_at, profiles:user_id ( full_name, avatar_url )')
       .order('created_at', { ascending: true })
 
     if (!data) return
@@ -41,7 +42,12 @@ export default function StoriesRow() {
     for (const row of data as any[]) {
       const uid = row.user_id
       if (!map.has(uid)) {
-        map.set(uid, { user_id: uid, full_name: row.profiles?.full_name ?? null, stories: [] })
+        map.set(uid, {
+          user_id: uid,
+          full_name: row.profiles?.full_name ?? null,
+          avatar_url: row.profiles?.avatar_url ?? null,
+          stories: [],
+        })
       }
       map.get(uid)!.stories.push({
         id: row.id,
@@ -65,8 +71,13 @@ export default function StoriesRow() {
         {myGroup ? (
           <button onClick={() => setViewingGroup(myGroup)} className="flex flex-col items-center gap-1">
             <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-lg">
-                🙂
+              <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+                {myGroup.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  myGroup.full_name?.[0]?.toUpperCase() || '🙂'
+                )}
               </div>
             </div>
             <span className="text-[10px] text-stone-600">Your Story</span>
@@ -89,8 +100,13 @@ export default function StoriesRow() {
           className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
-            <div className="w-full h-full rounded-full bg-stone-200 flex items-center justify-center text-sm font-bold text-stone-600">
-              {g.full_name?.[0]?.toUpperCase() || '?'}
+            <div className="w-full h-full rounded-full bg-stone-200 overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+              {g.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={g.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                g.full_name?.[0]?.toUpperCase() || '?'
+              )}
             </div>
           </div>
           <span className="text-[10px] text-stone-600 truncate w-full text-center">
@@ -108,17 +124,28 @@ export default function StoriesRow() {
 
 function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => void }) {
   const [index, setIndex] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [progress, setProgress] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const story = group.stories[index]
+  const DURATION = 5000
 
   useEffect(() => {
     if (!story) return
+    setProgress(0)
+
     if (story.media_type === 'image') {
-      timerRef.current = setTimeout(next, 5000)
+      const start = Date.now()
+      timerRef.current = setInterval(() => {
+        const pct = Math.min(((Date.now() - start) / DURATION) * 100, 100)
+        setProgress(pct)
+        if (pct >= 100) next()
+      }, 50)
     }
+
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) clearInterval(timerRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, story])
 
   function next() {
@@ -133,6 +160,11 @@ function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => voi
     if (index > 0) setIndex(index - 1)
   }
 
+  function handleVideoProgress(e: React.SyntheticEvent<HTMLVideoElement>) {
+    const v = e.currentTarget
+    if (v.duration) setProgress((v.currentTime / v.duration) * 100)
+  }
+
   if (!story) return null
 
   return (
@@ -140,13 +172,24 @@ function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => voi
       <div className="flex gap-1 px-3 pt-3">
         {group.stories.map((_, i) => (
           <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
-            <div className={`h-full bg-white ${i < index ? 'w-full' : i === index ? 'w-full' : 'w-0'}`} />
+            <div
+              className="h-full bg-white"
+              style={{ width: i < index ? '100%' : i === index ? `${progress}%` : '0%' }}
+            />
           </div>
         ))}
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-white text-sm font-semibold">{group.full_name || 'User'}</span>
+      <div className="flex items-center gap-2 px-3 py-2">
+        <div className="w-7 h-7 rounded-full overflow-hidden bg-stone-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          {group.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={group.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            group.full_name?.[0]?.toUpperCase() || '?'
+          )}
+        </div>
+        <span className="text-white text-sm font-semibold flex-1">{group.full_name || 'User'}</span>
         <button onClick={onClose} className="text-white text-2xl leading-none px-2">×</button>
       </div>
 
@@ -158,7 +201,14 @@ function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => voi
           // eslint-disable-next-line @next/next/no-img-element
           <img src={story.media_url} alt="" className="max-h-full max-w-full object-contain" />
         ) : (
-          <video src={story.media_url} autoPlay onEnded={next} className="max-h-full max-w-full object-contain" />
+          <video
+            src={story.media_url}
+            autoPlay
+            playsInline
+            onTimeUpdate={handleVideoProgress}
+            onEnded={next}
+            className="max-h-full max-w-full object-contain"
+          />
         )}
       </div>
 
