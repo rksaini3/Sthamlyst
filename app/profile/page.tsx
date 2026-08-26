@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
-import { Settings } from 'lucide-react'
+import { Menu, Settings, Moon, Sun, Shield, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import CreatorIdentitySetup from '@/components/CreatorIdentitySetup'
@@ -30,10 +30,27 @@ export default function ProfilePage() {
   const [debugError, setDebugError] = useState('')
   const [showIdentitySetup, setShowIdentitySetup] = useState(false)
 
+  // ---- Hamburger menu + Dark Mode ----
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [isDark, setIsDark] = useState(false)
+
   useEffect(() => {
-    // Re-runs automatically whenever the auth state actually resolves
-    // (including right after coming back from Google sign-in), instead
-    // of only checking once when the page first rendered.
+    const saved = localStorage.getItem('sthamly-theme')
+    const prefersDark = saved
+      ? saved === 'dark'
+      : window.matchMedia('(prefers-color-scheme: dark)').matches
+    setIsDark(prefersDark)
+    document.documentElement.classList.toggle('dark', prefersDark)
+  }, [])
+
+  function toggleDarkMode() {
+    const next = !isDark
+    setIsDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    localStorage.setItem('sthamly-theme', next ? 'dark' : 'light')
+  }
+
+  useEffect(() => {
     if (authLoading) return
     load()
   }, [authLoading, user?.id])
@@ -53,8 +70,6 @@ export default function ProfilePage() {
       .eq('id', user.id)
       .single()
 
-    // Self-heal: signed in, but no profile row exists yet (e.g. the
-    // on-signup trigger missed it) — create it now, then re-fetch.
     if (error && !data) {
       const ensureResult = await supabase.rpc('ensure_profile')
       if (ensureResult.error) {
@@ -86,12 +101,14 @@ export default function ProfilePage() {
     })
     setSaving(false)
 
-    // Missing gap: turning Creator Mode on without ever setting an
-    // identity leaves the profile looking like an empty "R" avatar —
-    // prompt for handle/bio/photo right here, once.
     if (field === 'is_creator' && value && !profile.username) {
       setShowIdentitySetup(true)
     }
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    window.location.href = '/'
   }
 
   if (loading || authLoading) return <PageSkeleton rows={1} />
@@ -115,8 +132,6 @@ export default function ProfilePage() {
   }
 
   if (!profile) {
-    // Signed in, but we couldn't load or create a profile row —
-    // this is a real error, not a "please sign in" situation.
     return (
       <div className="max-w-md mx-auto min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-4xl mb-3">⚠️</p>
@@ -160,20 +175,52 @@ export default function ProfilePage() {
             <p className="text-sm text-stone-500">{profile.city}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/settings"
-            className="text-stone-500 border border-stone-300 rounded-full p-1.5"
-            aria-label="Settings"
-          >
-            <Settings size={16} />
-          </Link>
+
+        {/* ---- Hamburger menu (replaces old Settings-icon + Sign-Out pair) ---- */}
+        <div className="relative">
           <button
-            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }}
-            className="text-xs font-semibold text-stone-500 border border-stone-300 rounded-full px-3 py-1.5"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="text-stone-500 dark:text-stone-300 border border-stone-300 dark:border-stone-600 rounded-full p-1.5"
+            aria-label="Menu"
           >
-            Sign Out
+            <Menu size={18} />
           </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-9 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1 z-20 min-w-[180px]">
+                <Link
+                  href="/settings"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                >
+                  <Settings size={16} /> Settings
+                </Link>
+                <Link
+                  href="/settings/privacy"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                >
+                  <Shield size={16} /> Privacy
+                </Link>
+                <button
+                  onClick={toggleDarkMode}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  {isDark ? 'Light Mode' : 'Dark Mode'}
+                </button>
+                <div className="my-1 border-t border-stone-100 dark:border-stone-700" />
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                >
+                  <LogOut size={16} /> Sign Out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -207,7 +254,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="mt-6 bg-white border border-amber-100 rounded-2xl p-4 space-y-4">
+      <div className="mt-6 bg-white dark:bg-stone-800 border border-amber-100 dark:border-stone-700 rounded-2xl p-4 space-y-4">
         <RoleToggle
           label="🛍️ Seller Mode"
           description="List your handmade products in the Local Bazaar"
@@ -239,7 +286,7 @@ export default function ProfilePage() {
 
       {profile.skill_badges?.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-sm font-bold text-stone-800 mb-2">Verified Knowledge Badges</h2>
+          <h2 className="text-sm font-bold text-stone-800 dark:text-stone-200 mb-2">Verified Knowledge Badges</h2>
           <div className="flex flex-wrap gap-2">
             {profile.skill_badges.map((badge) => (
               <span key={badge} className="text-xs bg-amber-100 text-amber-800 font-semibold px-3 py-1.5 rounded-full">
@@ -282,8 +329,8 @@ function RoleToggle({
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
-        <p className="font-semibold text-sm text-stone-900">{label}</p>
-        <p className="text-xs text-stone-500">{description}</p>
+        <p className="font-semibold text-sm text-stone-900 dark:text-stone-100">{label}</p>
+        <p className="text-xs text-stone-500 dark:text-stone-400">{description}</p>
       </div>
       <button
         disabled={disabled}
