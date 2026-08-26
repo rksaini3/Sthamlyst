@@ -76,20 +76,20 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
 
   return (
     <div className="px-4 pt-4 space-y-5">
-      {lessons.map((lesson) => (
+      {lessons.map((reel) => (
         <ReelCard
-          key={lesson.id}
+          key={reel.id}
           reel={{
-            id: lesson.id,
-            video_url: lesson.video_url || '',
-            title: lesson.title,
-            description: lesson.description,
-            quiz_questions: lesson.quiz_questions || [],
-            creator_id: lesson.creator_id,
-            creator_name: lesson.profiles?.full_name ?? null,
-            creator_username: lesson.profiles?.username ?? null,
-            creator_avatar: lesson.profiles?.avatar_url ?? null,
-            creator_verified: lesson.profiles?.is_verified ?? false,
+            id: reel.id,
+            video_url: reel.video_url,
+            title: reel.title,
+            description: reel.description,
+            quiz_questions: reel.quiz_questions || [],
+            creator_id: reel.creator_id,
+            creator_name: reel.profiles?.full_name ?? null,
+            creator_username: reel.profiles?.username ?? null,
+            creator_avatar: reel.profiles?.avatar_url ?? null,
+            creator_verified: reel.profiles?.is_verified ?? false,
           }}
         />
       ))}
