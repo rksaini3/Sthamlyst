@@ -66,30 +66,39 @@ export default function StoriesRow() {
 
   return (
     <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 no-scrollbar">
-      {/* Your Story */}
-      <div className="flex flex-col items-center gap-1 flex-shrink-0 w-16">
-        {myGroup ? (
-          <button onClick={() => setViewingGroup(myGroup)} className="flex flex-col items-center gap-1">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
-              <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
-                {myGroup.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  myGroup.full_name?.[0]?.toUpperCase() || '🙂'
-                )}
-              </div>
+      {/* Your Story — always shows Add(+), regardless of whether a story already exists */}
+      <div className="flex flex-col items-center gap-1 flex-shrink-0 w-16 relative">
+        <button
+          onClick={() => myGroup && setViewingGroup(myGroup)}
+          className="flex flex-col items-center gap-1"
+        >
+          <div
+            className={
+              myGroup
+                ? 'w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]'
+                : 'w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300'
+            }
+          >
+            <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+              {myGroup?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                myGroup?.full_name?.[0]?.toUpperCase() || ''
+              )}
             </div>
-            <span className="text-[10px] text-stone-600">Your Story</span>
-          </button>
-        ) : (
-          <Link href={user ? '/story/upload' : '/login'} className="flex flex-col items-center gap-1">
-            <div className="w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center text-xl text-stone-400">
-              +
-            </div>
-            <span className="text-[10px] text-stone-600">Add Story</span>
-          </Link>
-        )}
+          </div>
+          <span className="text-[10px] text-stone-600">Your Story</span>
+        </button>
+
+        {/* + badge — always visible, lets you add another story even if one already exists */}
+        <Link
+          href={user ? '/story/upload' : '/login'}
+          className="absolute top-0 right-0 w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold border-2 border-white"
+          aria-label="Add to your story"
+        >
+          +
+        </Link>
       </div>
 
       {/* Other users' stories */}
