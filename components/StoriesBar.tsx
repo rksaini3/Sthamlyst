@@ -10,6 +10,8 @@ const THEME_EMOJI: Record<string, string> = {
   'Jute Bags': '👜',
 }
 
+const HIDDEN_THEMES = ['Clay Crafts & Home Decor']
+
 export default function StoriesBar({
   activeTheme,
   onSelect,
@@ -28,7 +30,8 @@ export default function StoriesBar({
 
       if (data) {
         const unique = Array.from(new Set(data.map((d) => d.craft_theme).filter(Boolean)))
-        setThemes(unique as string[])
+        const visible = unique.filter((t) => !HIDDEN_THEMES.includes(t as string))
+        setThemes(visible as string[])
       }
     }
     loadThemes()
