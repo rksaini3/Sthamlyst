@@ -66,6 +66,17 @@ export default function StoriesRow() {
 
   return (
     <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 no-scrollbar">
+      {/* Add Story — always first (leftmost) */}
+      <Link
+        href={user ? '/story/upload' : '/login'}
+        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+      >
+        <div className="w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
+          <span className="text-2xl text-amber-600 leading-none">+</span>
+        </div>
+        <span className="text-[10px] text-stone-600">Add Story</span>
+      </Link>
+
       {/* Your Story — only shown if a story already exists, tap to VIEW it */}
       {myGroup && (
         <button
@@ -85,17 +96,6 @@ export default function StoriesRow() {
           <span className="text-[10px] text-stone-600">Your Story</span>
         </button>
       )}
-
-      {/* Add Story — completely separate item, always visible, own circle, no overlap with anything */}
-      <Link
-        href={user ? '/story/upload' : '/login'}
-        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
-      >
-        <div className="w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
-          <span className="text-2xl text-amber-600 leading-none">+</span>
-        </div>
-        <span className="text-[10px] text-stone-600">Add Story</span>
-      </Link>
 
       {/* Other users' stories */}
       {otherGroups.map((g) => (
