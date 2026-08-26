@@ -66,42 +66,36 @@ export default function StoriesRow() {
 
   return (
     <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 no-scrollbar">
-      {/* Your Story — ring shows existing story (tap to view), + badge (bottom-right, Instagram-style) always lets you add a new one */}
-      <div className="flex flex-col items-center gap-1 flex-shrink-0 w-16">
-        <div className="relative w-14 h-14">
-          <button
-            onClick={() => myGroup && setViewingGroup(myGroup)}
-            className="block w-14 h-14"
-          >
-            <div
-              className={
-                myGroup
-                  ? 'w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]'
-                  : 'w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300'
-              }
-            >
-              <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
-                {myGroup?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  myGroup?.full_name?.[0]?.toUpperCase() || ''
-                )}
-              </div>
+      {/* Your Story — only shown if a story already exists, tap to VIEW it */}
+      {myGroup && (
+        <button
+          onClick={() => setViewingGroup(myGroup)}
+          className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+        >
+          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
+            <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+              {myGroup.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                myGroup.full_name?.[0]?.toUpperCase() || ''
+              )}
             </div>
-          </button>
+          </div>
+          <span className="text-[10px] text-stone-600">Your Story</span>
+        </button>
+      )}
 
-          {/* + badge — Instagram-style: bottom-right, its own circle, clearly separated */}
-          <Link
-            href={user ? '/story/upload' : '/login'}
-            className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-base font-bold border-[2.5px] border-white shadow-sm z-10"
-            aria-label="Add to your story"
-          >
-            +
-          </Link>
+      {/* Add Story — completely separate item, always visible, own circle, no overlap with anything */}
+      <Link
+        href={user ? '/story/upload' : '/login'}
+        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+      >
+        <div className="w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
+          <span className="text-2xl text-amber-600 leading-none">+</span>
         </div>
-        <span className="text-[10px] text-stone-600">Your Story</span>
-      </div>
+        <span className="text-[10px] text-stone-600">Add Story</span>
+      </Link>
 
       {/* Other users' stories */}
       {otherGroups.map((g) => (
