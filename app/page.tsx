@@ -6,7 +6,6 @@ import CategoryFilter from '@/components/CategoryFilter'
 import ReelFeed from '@/components/ReelFeed'
 import MohallaScoreCard from '@/components/MohallaScoreCard'
 import SathiStreakCard from '@/components/SathiStreakCard'
-import QuickFilterPills from '@/components/QuickFilterPills'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -44,7 +43,6 @@ export default function Home() {
       <StoriesRow />
       <MohallaScoreCard />
       <SathiStreakCard />
-      <QuickFilterPills />
 
       <CategoryFilter activeTheme={activeTheme} onSelect={setActiveTheme} />
       <ReelFeed themeFilter={activeTheme} />
