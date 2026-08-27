@@ -3,11 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle } from 'lucide-react'
-import PageSkeleton from './PageSkeleton'
-import ShareButton from './ShareButton'
-import OptionsMenu from './OptionsMenu'
-import EmojiPicker from './EmojiPicker'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -41,7 +36,6 @@ type CreatorInfo = {
   is_verified: boolean
 }
 
-// Follow relationship with a creator, from the caller's point of view.
 type FollowStatus = 'none' | 'requested' | 'accepted'
 
 export default function ReelFeed({ themeFilter }: { themeFilter?: string | null }) {
@@ -71,11 +65,8 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
 
     setLessons(data as Lesson[])
     const lessonIds = (data as Lesson[]).map((l) => l.id)
-
     const productIds = (data as Lesson[]).map((l) => l.tagged_product_id).filter((id): id is string => !!id)
-    const creatorIds = Array.from(
-      new Set((data as Lesson[]).map((l) => l.creator_id).filter((id): id is string => !!id))
-    )
+    const creatorIds = Array.from(new Set((data as Lesson[]).map((l) => l.creator_id).filter((id): id is string => !!id)))
 
     const [productRes, creatorRes, likesRes, commentsRes, myFollowsRes, followsMeRes] = await Promise.all([
       productIds.length > 0
@@ -86,11 +77,9 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('likes').select('lesson_id, user_id').in('lesson_id', lessonIds),
       supabase.from('comments').select('lesson_id').in('lesson_id', lessonIds),
-      // My outgoing follow status toward each creator on screen
       user && creatorIds.length > 0
         ? supabase.from('follows').select('following_id, status').eq('follower_id', user.id).in('following_id', creatorIds)
         : Promise.resolve({ data: [] as any[] }),
-      // Which of these creators already follow ME back (for "Follow Back" label)
       user && creatorIds.length > 0
         ? supabase.from('follows').select('follower_id').eq('following_id', user.id).eq('status', 'accepted').in('follower_id', creatorIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -102,12 +91,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
 
     const cMap: Record<string, CreatorInfo> = {}
     ;(creatorRes.data || []).forEach((c: any) => {
-      cMap[c.id] = {
-        full_name: c.full_name,
-        username: c.username,
-        avatar_url: c.avatar_url,
-        is_verified: !!c.is_verified,
-      }
+      cMap[c.id] = { full_name: c.full_name, username: c.username, avatar_url: c.avatar_url, is_verified: !!c.is_verified }
     })
     setCreators(cMap)
 
@@ -127,13 +111,10 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
     setCommentCounts(commentCountMap)
 
     const statusMap: Record<string, FollowStatus> = {}
-    ;(myFollowsRes.data || []).forEach((f: any) => {
-      statusMap[f.following_id] = f.status
-    })
+    ;(myFollowsRes.data || []).forEach((f: any) => { statusMap[f.following_id] = f.status })
     setMyFollowStatus(statusMap)
 
     setFollowsMe(new Set((followsMeRes.data || []).map((f: any) => f.follower_id)))
-
     setLoading(false)
   }
 
@@ -154,9 +135,6 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
     await supabase.rpc('toggle_like', { p_lesson_id: lessonId })
   }
 
-  // Uses the v19 toggle_follow RPC, which itself decides whether the
-  // result is an instant follow ('accepted') or a pending request
-  // ('requested') based on the target's private-account setting.
   async function toggleFollow(creatorId: string) {
     if (!user) return
     const { data, error } = await supabase.rpc('toggle_follow', { p_target_user_id: creatorId })
@@ -169,7 +147,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
   }
 
   if (loading) {
-    return <PageSkeleton rows={2} />
+    return <div className="px-4 pt-10 text-center text-stone-400 text-sm">Loading reels…</div>
   }
 
   return (
@@ -219,12 +197,15 @@ function LessonCard({
   onDeleted: () => void
 }) {
   const router = useRouter()
+  const showsQuiz = lesson.quiz_questions && lesson.quiz_questions.length > 0
 
-  // Variable quiz frequency: only ~1 in 3 lessons shows a quiz overlay
-  // when the video ends — a stable pseudo-random pick per lesson (not
-  // re-rolled on every render), so it feels occasional, not predictable,
-  // without ever being mandatory to keep scrolling.
-  const showsQuiz = hashToBucket(lesson.id) % 3 === 0
+  const [videoEnded, setVideoEnded] = useState(false)
+  const [quizAnswered, setQuizAnswered] = useState(false)
+  const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [rewardGiven, setRewardGiven] = useState(false)
+  const [showComments, setShowComments] = useState(false)
+  const [showOptions, setShowOptions] = useState(false)
 
   async function handleDelete() {
     if (!confirm('Ye reel delete kar dein?')) return
@@ -236,19 +217,35 @@ function LessonCard({
     router.push(`/upload?remixOf=${lesson.id}`)
   }
 
-  const [videoEnded, setVideoEnded] = useState(false)
-  const [quizStep, setQuizStep] = useState(0) // 0 = first question, 1 = second
-  const [answers, setAnswers] = useState<number[]>([])
-  const [toast, setToast] = useState<string | null>(null)
-  const [rewardGiven, setRewardGiven] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  function handleWhatsAppShare() {
+    const url = `${window.location.origin}/lesson/${lesson.id}`
+    const text = encodeURIComponent(`${lesson.title} — Sthamly pe dekho: ${url}`)
+    window.open(`https://wa.me/?text=${text}`, '_blank')
+    setShowOptions(false)
+  }
+
+  async function handleShare() {
+    const url = `${window.location.origin}/lesson/${lesson.id}`
+    if (navigator.share) {
+      await navigator.share({ title: lesson.title, url })
+    } else {
+      await navigator.clipboard.writeText(url)
+      setToast('Link copy ho gaya')
+      setTimeout(() => setToast(null), 1500)
+    }
+    setShowOptions(false)
+  }
+
+  function handleAskAI() {
+    router.push(`/sahayak?about=${lesson.id}`)
+    setShowOptions(false)
+  }
 
   async function handleVideoEnded() {
     if (rewardGiven) return
     setVideoEnded(true)
 
     if (!showsQuiz) {
-      // No quiz this time — just a small, silent watch reward.
       const { data, error } = await supabase.rpc('award_watch_reward', { p_lesson_id: lesson.id })
       setRewardGiven(true)
       if (!error && typeof data === 'number' && data > 0) {
@@ -259,29 +256,22 @@ function LessonCard({
   }
 
   async function answerQuiz(optionIndex: number) {
-    const isLast = quizStep === lesson.quiz_questions.length - 1
-    const nextAnswers = [...answers, optionIndex]
-    setAnswers(nextAnswers)
-
-    if (!isLast) {
-      setQuizStep(quizStep + 1)
-      return
-    }
-
-    // All questions answered — score it.
-    const allCorrect = lesson.quiz_questions.every((q, i) => nextAnswers[i] === q.correct_index)
+    const quiz = lesson.quiz_questions[0]
+    setSelectedOption(optionIndex)
+    const isCorrect = optionIndex === quiz.correct_index
     setRewardGiven(true)
-    setVideoEnded(false) // hide the overlay, whatever the result
 
-    if (allCorrect) {
+    if (isCorrect) {
       const { data, error } = await supabase.rpc('complete_lesson', { p_lesson_id: lesson.id })
-      if (!error && typeof data === 'number') {
-        setToast(`✓ +${data} Coins earned!`)
-      }
+      if (!error && typeof data === 'number') setToast(`+${data} Coins mile!`)
     } else {
-      setToast('Not quite — koi baat nahi, aage badho')
+      setToast('Sahi jawab dekho agli baar')
     }
-    setTimeout(() => setToast(null), 2200)
+    setTimeout(() => {
+      setToast(null)
+      setVideoEnded(false)
+      setQuizAnswered(true)
+    }, 1500)
   }
 
   function skipQuiz() {
@@ -289,7 +279,7 @@ function LessonCard({
     setRewardGiven(true)
   }
 
-  const currentQuestion = lesson.quiz_questions[quizStep]
+  const quiz = lesson.quiz_questions?.[0]
 
   const followLabel =
     followStatus === 'accepted' ? 'Following' :
@@ -297,11 +287,12 @@ function LessonCard({
     creatorFollowsMe ? 'Follow Back' : 'Follow'
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-      <div className="relative aspect-[9/16] bg-stone-200">
+    <div className="bg-black rounded-2xl overflow-hidden shadow-sm relative">
+      <div className="relative aspect-[9/16] bg-stone-900">
         {lesson.video_url ? (
           <video
             src={lesson.video_url}
+            playsInline
             controls
             onEnded={handleVideoEnded}
             className="w-full h-full object-cover"
@@ -312,135 +303,143 @@ function LessonCard({
           </div>
         )}
 
-        {/* 1-tap poll-style quiz overlay — appears only on video end, only
-            for the ~1-in-3 lessons chosen for this session, and can be
-            skipped without any penalty beyond not earning the bonus. */}
-        {videoEnded && showsQuiz && currentQuestion && !rewardGiven && (
-          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center px-6">
-            <p className="text-white text-sm font-semibold text-center mb-3">
-              {currentQuestion.question}
-            </p>
-            <div className="w-full space-y-2">
-              {currentQuestion.options.map((opt, oi) => (
-                <button
-                  key={oi}
-                  onClick={() => answerQuiz(oi)}
-                  className="w-full bg-white/95 hover:bg-white text-stone-900 font-semibold text-sm py-2.5 rounded-full"
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-            <button onClick={skipQuiz} className="text-white/70 text-xs mt-4 underline">
-              Skip
-            </button>
-          </div>
-        )}
-
-        {/* Reward toast */}
-        {toast && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-mehendi text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg">
-            {toast}
-          </div>
-        )}
-      </div>
-
-      <div className="p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[10px] font-semibold text-turmeric bg-turmeric-light px-2 py-0.5 rounded-full">
-              {lesson.craft_theme}
-            </span>
-            {lesson.is_user_generated && creator && (
-              <span className="text-[11px] font-semibold text-stone-600 truncate flex items-center gap-1">
-                by {creator.username ? `@${creator.username}` : (creator.full_name || 'Creator')}
-                {creator.is_verified && <span className="text-sky-500">✔️</span>}
-              </span>
+        {/* Top: creator info + follow */}
+        <div className="absolute top-3 left-3 right-16 flex items-center gap-2 pointer-events-none">
+          <div className="w-8 h-8 rounded-full bg-stone-300 overflow-hidden flex-shrink-0 pointer-events-auto">
+            {creator?.avatar_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
             )}
+          </div>
+          <div className="flex items-center gap-1 min-w-0 pointer-events-auto">
+            <span className="text-white text-sm font-semibold truncate drop-shadow">
+              {creator?.username ? `@${creator.username}` : (creator?.full_name || 'Creator')}
+            </span>
+            {creator?.is_verified && <span className="text-sky-400 text-xs">✔️</span>}
           </div>
           {lesson.is_user_generated && lesson.creator_id && !isMe && (
             <button
               onClick={onToggleFollow}
-              className={`text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0 whitespace-nowrap ${
-                followStatus === 'accepted'
-                  ? 'bg-stone-100 text-stone-600'
-                  : followStatus === 'requested'
-                  ? 'bg-stone-100 text-stone-500'
-                  : 'bg-indigobrand text-white'
+              className={`ml-1 text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap pointer-events-auto ${
+                followStatus === 'accepted' || followStatus === 'requested'
+                  ? 'bg-white/20 text-white border border-white/40'
+                  : 'bg-clay text-white'
               }`}
             >
               {followLabel}
             </button>
           )}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={handleRemix} className="text-stone-400" title="Remix">
-              🎵
+        </div>
+
+        {/* Bottom-left: title + description */}
+        <div className="absolute bottom-4 left-3 right-16 pointer-events-none">
+          <p className="text-white text-sm font-semibold drop-shadow">{lesson.title}</p>
+          {lesson.description && (
+            <p className="text-white/85 text-xs mt-1 line-clamp-2 drop-shadow">{lesson.description}</p>
+          )}
+          {lesson.long_form_video_url && (
+            <Link
+              href={`/lesson/${lesson.id}`}
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-white bg-black/40 px-2 py-1 rounded-full pointer-events-auto"
+            >
+              📺 {lesson.long_form_title || 'See Full Lesson'} →
+            </Link>
+          )}
+          {taggedProduct && (
+            <Link
+              href="/bazaar"
+              className="mt-2 flex items-center gap-2 bg-white/95 rounded-xl p-2 pointer-events-auto max-w-[220px]"
+            >
+              {taggedProduct.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={taggedProduct.image_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold text-stone-800 truncate">{taggedProduct.title}</p>
+                <p className="text-[11px] text-clay font-bold">₹{taggedProduct.price}</p>
+              </div>
+              <span className="text-[10px] font-bold bg-clay text-white px-2 py-1 rounded-full whitespace-nowrap">
+                Buy
+              </span>
+            </Link>
+          )}
+        </div>
+
+        {/* Right side: floating action sidebar */}
+        <div className="absolute bottom-4 right-2 flex flex-col items-center gap-4 z-10">
+          <button onClick={onToggleLike} className="flex flex-col items-center text-white drop-shadow">
+            <span className="text-2xl">{liked ? '❤️' : '🤍'}</span>
+            <span className="text-[10px] font-semibold">{likeCount}</span>
+          </button>
+          <button onClick={() => setShowComments((v) => !v)} className="flex flex-col items-center text-white drop-shadow">
+            <span className="text-2xl">💬</span>
+            <span className="text-[10px] font-semibold">{commentCount}</span>
+          </button>
+          <button onClick={handleWhatsAppShare} className="flex flex-col items-center text-white drop-shadow">
+            <span className="text-2xl">🟢</span>
+          </button>
+          <button onClick={handleShare} className="flex flex-col items-center text-white drop-shadow">
+            <span className="text-2xl">↗️</span>
+          </button>
+          <button onClick={handleRemix} className="flex flex-col items-center text-white drop-shadow">
+            <span className="text-2xl">🎵</span>
+          </button>
+          <div className="relative">
+            <button onClick={() => setShowOptions((v) => !v)} className="flex flex-col items-center text-white drop-shadow">
+              <span className="text-2xl">⋯</span>
             </button>
-            <ShareButton url="/" title={lesson.title} text={`${lesson.title} — Sthamly par dekho`} />
-            <OptionsMenu isOwner={isMe} onDelete={handleDelete} />
+            {showOptions && (
+              <div className="absolute bottom-8 right-0 bg-white rounded-xl shadow-lg py-1 w-36 z-20">
+                <button onClick={handleAskAI} className="w-full text-left px-3 py-2 text-xs text-stone-700 flex items-center gap-2">
+                  ✨ Ask AI
+                </button>
+                {isMe && (
+                  <button onClick={handleDelete} className="w-full text-left px-3 py-2 text-xs text-red-600 flex items-center gap-2">
+                    🗑️ Delete
+                  </button>
+                )}
+                <button onClick={() => setShowOptions(false)} className="w-full text-left px-3 py-2 text-xs text-stone-500">
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        <h2 className="font-bold text-stone-900 mt-2">{lesson.title}</h2>
-        <p className="text-sm text-stone-500 mt-1">{lesson.description}</p>
-
-        {lesson.long_form_video_url && (
-          <Link
-            href={`/lesson/${lesson.id}`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-clay"
-          >
-            📺 {lesson.long_form_title || 'See Full Lesson'} →
-          </Link>
-        )}
-
-        {taggedProduct && (
-          <Link
-            href="/bazaar"
-            className="mt-3 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-2.5"
-          >
-            {taggedProduct.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={taggedProduct.image_url} alt={taggedProduct.title} className="w-12 h-12 rounded-lg object-cover" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-stone-800 truncate">{taggedProduct.title}</p>
-              <p className="text-xs text-clay font-bold">₹{taggedProduct.price}</p>
+        {/* End-screen quiz overlay — single question only */}
+        {videoEnded && showsQuiz && quiz && !quizAnswered && (
+          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center px-6 z-20">
+            <div className="bg-clay text-white text-xs font-bold px-3 py-1 rounded-full mb-4">
+              💡 Quick Question (+{lesson.points_reward} Coins)
             </div>
-            <span className="text-[11px] font-bold bg-clay text-white px-3 py-1.5 rounded-full whitespace-nowrap">
-              Buy Now
-            </span>
-          </Link>
+            <p className="text-white text-base font-semibold text-center mb-5">{quiz.question}</p>
+            <div className="w-full space-y-2">
+              {quiz.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => answerQuiz(i)}
+                  className="w-full bg-white/95 text-stone-900 font-semibold text-sm py-3 rounded-full"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <button onClick={skipQuiz} className="text-white/70 text-xs mt-4 underline">Skip</button>
+          </div>
         )}
 
-        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-stone-100">
-          <button onClick={onToggleLike} className="flex items-center gap-1.5">
-            <Heart size={20} className={liked ? 'fill-clay text-clay' : 'text-stone-400'} />
-            <span className="text-xs text-stone-600">{likeCount}</span>
-          </button>
-          <button onClick={() => setShowComments((v) => !v)} className="flex items-center gap-1.5">
-            <MessageCircle size={20} className="text-stone-400" />
-            <span className="text-xs text-stone-600">{commentCount}</span>
-          </button>
-          <span className="text-[10px] text-stone-400 ml-auto">
-            {showsQuiz ? `Quiz on this one · +${lesson.points_reward} Coins` : `+${lesson.watch_reward} Coins for watching`}
-          </span>
-        </div>
-
-        {showComments && <CommentsPanel lessonId={lesson.id} onCommentAdded={onCommentAdded} />}
+        {toast && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-mehendi text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg z-20">
+            {toast}
+          </div>
+        )}
       </div>
+
+      {showComments && (
+        <CommentsPanel lessonId={lesson.id} onCommentAdded={onCommentAdded} onClose={() => setShowComments(false)} />
+      )}
     </div>
   )
-}
-
-// Small stable hash so the same lesson always lands in the same
-// quiz/no-quiz bucket for a given session — not re-randomized on
-// every re-render, but still varies lesson to lesson.
-function hashToBucket(id: string): number {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return hash
 }
 
 type Comment = {
@@ -452,7 +451,9 @@ type Comment = {
   profiles: { full_name: string | null } | null
 }
 
-function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onCommentAdded: () => void }) {
+function CommentsPanel({
+  lessonId, onCommentAdded, onClose,
+}: { lessonId: string; onCommentAdded: () => void; onClose: () => void }) {
   const { user } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
@@ -529,26 +530,20 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
     setPosting(false)
   }
 
-  async function deleteComment(id: string) {
-    setComments((prev) => prev.filter((c) => c.id !== id))
-    await supabase.rpc('delete_comment', { p_comment_id: id })
-  }
-
   return (
-    <div className="mt-3 bg-stone-50 rounded-xl p-3 space-y-2">
+    <div className="bg-white p-3 space-y-2 border-t border-stone-100">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-stone-700">Comments</span>
+        <button onClick={onClose} className="text-stone-400 text-lg leading-none">×</button>
+      </div>
       {loading ? (
         <p className="text-xs text-stone-400">Loading comments…</p>
       ) : (
         comments.map((c) => (
-          <div key={c.id} className="flex items-start justify-between gap-2 text-xs">
-            <div className="flex-1 min-w-0">
-              <span className="font-semibold text-stone-800">{c.profiles?.full_name || 'User'}: </span>
-              {c.body && <span className="text-stone-600">{c.body}</span>}
-              {c.audio_url && <audio src={c.audio_url} controls className="mt-1 h-7 w-full max-w-[200px]" />}
-            </div>
-            {user && c.user_id === user.id && (
-              <button onClick={() => deleteComment(c.id)} className="text-stone-400 flex-shrink-0">×</button>
-            )}
+          <div key={c.id} className="text-xs">
+            <span className="font-semibold text-stone-800">{c.profiles?.full_name || 'User'}: </span>
+            {c.body && <span className="text-stone-600">{c.body}</span>}
+            {c.audio_url && <audio src={c.audio_url} controls className="mt-1 h-7 w-full max-w-[200px]" />}
           </div>
         ))
       )}
@@ -563,12 +558,9 @@ function CommentsPanel({ lessonId, onCommentAdded }: { lessonId: string; onComme
             placeholder="Add a comment…"
             className="flex-1 border border-stone-300 rounded-full px-3 py-1.5 text-xs"
           />
-          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
           <button
             onClick={recording ? stopRecording : startRecording}
-            className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs ${
-              recording ? 'bg-red-600 text-white' : 'bg-stone-200 text-stone-600'
-            }`}
+            className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs ${recording ? 'bg-red-600 text-white' : 'bg-stone-200 text-stone-600'}`}
           >
             🎙️
           </button>
