@@ -42,7 +42,7 @@ export default function ReelCard({
   const [deleted, setDeleted] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  const quiz = reel.quiz_questions?.[0]
+  const quiz = reel.quiz_questions?.[0] // 1-question quiz — final decision
   const isOwner = !!user && user.id === reel.creator_id
 
   function handleVideoEnded() {
@@ -55,10 +55,14 @@ export default function ReelCard({
     setLiked(!!data)
   }
 
+  // FIX: Coins ab sirf sahi jawab pe milte hain — pehle galat jawab pe
+  // bhi complete_lesson() call ho jaata thaa aur Coins mil jaate the.
   async function handleAnswer(i: number) {
     if (!user) return router.push('/login')
     setSelectedOption(i)
-    await supabase.rpc('complete_lesson', { p_lesson_id: reel.id })
+    if (i === quiz.correct_index) {
+      await supabase.rpc('complete_lesson', { p_lesson_id: reel.id })
+    }
     setQuizAnswered(true)
     setTimeout(() => setShowQuiz(false), 1500)
   }
@@ -163,6 +167,7 @@ export default function ReelCard({
           text={`Sthamly pe "${reel.title}" dekho`}
           className="text-white"
         />
+        {/* Remix — abhi tak decision pending hai, isliye rehne diya */}
         <button onClick={handleRemix} className="flex flex-col items-center text-white">
           <span className="text-2xl">🎵</span>
         </button>
