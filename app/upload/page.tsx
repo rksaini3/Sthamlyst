@@ -32,9 +32,10 @@ function uploadViaTus(
       endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
       retryDelays: [0, 1000, 3000, 5000, 10000, 15000],
       headers: {
-        authorization: `Bearer ${accessToken}`,
-        'x-upsert': 'true',
-      },
+  authorization: `Bearer ${accessToken}`,
+  apikey: SUPABASE_ANON_KEY,
+  'x-upsert': 'true',
+},
       metadata: {
         bucketName: bucket,
         objectName: path,
