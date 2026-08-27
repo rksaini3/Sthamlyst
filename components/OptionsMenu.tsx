@@ -4,15 +4,21 @@ import { useState } from 'react'
 import { MoreVertical } from 'lucide-react'
 
 export default function OptionsMenu({
-  isOwner, onEdit, onDelete, deleteLabel = 'Delete',
-}: { isOwner: boolean; onEdit?: () => void; onDelete?: () => void; deleteLabel?: string }) {
+  isOwner, onEdit, onDelete, deleteLabel = 'Delete', iconClassName = 'text-stone-400',
+}: {
+  isOwner: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+  deleteLabel?: string
+  iconClassName?: string
+}) {
   const [open, setOpen] = useState(false)
 
   if (!isOwner) return null
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="text-stone-400 p-1" aria-label="Options">
+      <button onClick={() => setOpen((v) => !v)} className={`${iconClassName} p-1`} aria-label="Options">
         <MoreVertical size={18} />
       </button>
       {open && (
