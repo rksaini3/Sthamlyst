@@ -2,10 +2,63 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import * as tus from 'tus-js-client'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
+// SETUP NEEDED: npm install tus-js-client
+// This switches video uploads from a single big PUT request to a
+// resumable, chunked upload — Supabase Storage supports this via the
+// TUS protocol. On a flaky mobile connection, a normal upload has to
+// restart completely from zero if the connection blips even once;
+// a TUS upload resumes from wherever it left off, and we can show a
+// real progress bar so it's clear it's actually working instead of
+// looking frozen.
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
 type MyProduct = { id: string; title: string }
+
+function uploadViaTus(
+  file: File,
+  bucket: string,
+  path: string,
+  accessToken: string,
+  onProgress: (pct: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
+      retryDelays: [0, 1000, 3000, 5000, 10000, 15000],
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'x-upsert': 'true',
+      },
+      metadata: {
+        bucketName: bucket,
+        objectName: path,
+        contentType: file.type || 'video/mp4',
+        cacheControl: '3600',
+      },
+      chunkSize: 6 * 1024 * 1024, // 6MB per chunk — required by Supabase's TUS endpoint
+      onError: (error) => reject(error),
+      onProgress: (bytesUploaded, bytesTotal) => {
+        onProgress(Math.round((bytesUploaded / bytesTotal) * 100))
+      },
+      onSuccess: () => resolve(),
+    })
+
+    // Resume an interrupted upload of the same file if one exists,
+    // instead of starting over from 0%.
+    upload.findPreviousUploads().then((previousUploads) => {
+      if (previousUploads.length) {
+        upload.resumeFromPreviousUpload(previousUploads[0])
+      }
+      upload.start()
+    })
+  })
+}
 
 export default function UploadReelPage() {
   const { user, loading: authLoading } = useAuth()
@@ -14,17 +67,21 @@ export default function UploadReelPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [craftTheme, setCraftTheme] = useState('Clay Crafts & Home Decor')
+
+  // Single optional quiz — matches the product spec ("Single Quiz
+  // Switch: Add 1 Quiz to Reel?"), not a mandatory 2-question form.
+  const [addQuiz, setAddQuiz] = useState(false)
   const [q1, setQ1] = useState('')
   const [q1Options, setQ1Options] = useState(['', '', ''])
   const [q1Correct, setQ1Correct] = useState(0)
-  const [q2, setQ2] = useState('')
-  const [q2Options, setQ2Options] = useState(['', '', ''])
-  const [q2Correct, setQ2Correct] = useState(0)
+
   const [taggedProductId, setTaggedProductId] = useState('')
   const [longFormFile, setLongFormFile] = useState<File | null>(null)
   const [longFormTitle, setLongFormTitle] = useState('')
   const [myProducts, setMyProducts] = useState<MyProduct[]>([])
   const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [progressLabel, setProgressLabel] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -41,47 +98,52 @@ export default function UploadReelPage() {
 
   async function handleSubmit() {
     setError('')
-    if (!videoFile || !title || !q1 || !q2) {
-      setError('Video, title, aur dono quiz questions bharo.')
+
+    if (!videoFile || !title) {
+      setError('Video aur title dono zaroori hain.')
+      return
+    }
+    if (addQuiz && (!q1 || q1Options.filter(Boolean).length < 2)) {
+      setError('Quiz on hai to sawaal aur kam se kam 2 options bharo, ya quiz switch off kar do.')
       return
     }
 
-    // Supabase's free tier rejects uploads over ~50MB, and on a slow mobile
-    // connection a large file often fails silently with a generic "Failed
-    // to fetch" instead of a clear size error — so we catch it here first
-    // with an actionable message.
+    if (!user) {
+      setError('Pehle sign in karo.')
+      router.push('/login')
+      return
+    }
+
+    // Supabase Storage's per-project default file size limit is 50MB
+    // on the free tier (can be raised in Dashboard -> Storage -> your
+    // bucket -> settings if needed later for longer reels).
     const MAX_MB = 45
     if (videoFile.size > MAX_MB * 1024 * 1024) {
       setError(
-        `Ye video ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB ki hai — ${MAX_MB}MB se choti honi chahiye. Phone camera settings mein resolution kam karo, ya kisi video-compress app (jaise "Video Compressor") se chhota karke dobara try karo.`
+        `Ye video ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB ki hai — ${MAX_MB}MB se choti honi chahiye. Phone camera settings mein resolution kam karo, ya kisi video-compress app se chhota karke dobara try karo.`
       )
       return
     }
 
     setUploading(true)
 
-    if (!user) {
-      setError('Pehle sign in karo.')
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) {
+      setError('Session expire ho gaya, dobara login karo.')
       setUploading(false)
       router.push('/login')
       return
     }
 
     const filePath = `${user.id}/${Date.now()}-${videoFile.name}`
-    let uploadError: any = null
-    try {
-      const result = await supabase.storage.from('reels').upload(filePath, videoFile)
-      uploadError = result.error
-    } catch (e: any) {
-      uploadError = e
-    }
 
-    if (uploadError) {
-      const isNetworkError = /failed to fetch|network/i.test(uploadError.message || '')
+    try {
+      setProgressLabel('Reel upload ho raha hai...')
+      await uploadViaTus(videoFile, 'reels', filePath, accessToken, setProgress)
+    } catch (e: any) {
       setError(
-        isNetworkError
-          ? 'Upload beech mein ruk gaya — internet connection check karo (WiFi ya strong 4G) aur dobara try karo. Video bada ho to pehle chhota kar lo.'
-          : 'Video upload fail: ' + uploadError.message
+        'Upload beech mein ruk gaya — internet connection check karo (WiFi ya strong 4G) aur "Publish Reel" dobara dabao, yeh wahi se resume karega jahan ruka tha.'
       )
       setUploading(false)
       return
@@ -100,9 +162,12 @@ export default function UploadReelPage() {
         return
       }
       const longPath = `${user.id}/long-${Date.now()}-${longFormFile.name}`
-      const { error: longUploadError } = await supabase.storage.from('reels').upload(longPath, longFormFile)
-      if (longUploadError) {
-        setError('Long-form video upload fail: ' + longUploadError.message)
+      try {
+        setProgress(0)
+        setProgressLabel('Long-form video upload ho raha hai...')
+        await uploadViaTus(longFormFile, 'reels', longPath, accessToken, setProgress)
+      } catch (e: any) {
+        setError('Long-form video upload fail ho gaya, dobara try karo.')
         setUploading(false)
         return
       }
@@ -110,10 +175,11 @@ export default function UploadReelPage() {
       longFormUrl = longUrlData.publicUrl
     }
 
-    const quizQuestions = [
-      { question: q1, options: q1Options.filter(Boolean), correct_index: q1Correct },
-      { question: q2, options: q2Options.filter(Boolean), correct_index: q2Correct },
-    ]
+    setProgressLabel('Reel publish ho raha hai...')
+
+    const quizQuestions = addQuiz && q1
+      ? [{ question: q1, options: q1Options.filter(Boolean), correct_index: q1Correct }]
+      : []
 
     const { error: rpcError } = await supabase.rpc('create_reel', {
       p_title: title,
@@ -140,7 +206,7 @@ export default function UploadReelPage() {
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
       <h1 className="text-xl font-bold text-clay">Upload a Reel</h1>
       <p className="text-xs text-stone-500 mt-1">
-        1-min video + a 2-question quiz. Viewers earn points, and can buy your tagged product.
+        1-min video. Ek optional quiz laga sakte ho, viewers points kamate hain aur tagged product khareed sakte hain.
       </p>
 
       <div className="mt-5 space-y-4">
@@ -153,8 +219,7 @@ export default function UploadReelPage() {
             className="block w-full text-sm mt-1"
           />
           <p className="text-[11px] text-stone-400 mt-1">
-            Under 45MB works best (a 1-min clip at normal quality). Very high-resolution phone
-            recordings can be 100MB+ and may fail to upload on slower networks.
+            Under 45MB works best (a 1-min clip at normal quality).
           </p>
           {videoFile && (
             <p className="text-[11px] text-stone-500 mt-1">
@@ -180,18 +245,29 @@ export default function UploadReelPage() {
           </select>
         </div>
 
-        <QuizBuilder
-          label="Question 1"
-          question={q1} setQuestion={setQ1}
-          options={q1Options} setOptions={setQ1Options}
-          correct={q1Correct} setCorrect={setQ1Correct}
-        />
-        <QuizBuilder
-          label="Question 2"
-          question={q2} setQuestion={setQ2}
-          options={q2Options} setOptions={setQ2Options}
-          correct={q2Correct} setCorrect={setQ2Correct}
-        />
+        {/* Single Quiz Switch — matches spec: optional, one question only */}
+        <div className="flex items-center justify-between border border-stone-200 rounded-xl px-3 py-3">
+          <div>
+            <p className="text-sm font-semibold text-stone-800">💡 Add 1 Quiz to Reel?</p>
+            <p className="text-[11px] text-stone-500">Viewers ko reel khatam hone par ek sawaal dikhega (+5 Coins)</p>
+          </div>
+          <button
+            onClick={() => setAddQuiz((v) => !v)}
+            className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${
+              addQuiz ? 'bg-clay justify-end' : 'bg-stone-300 justify-start'
+            }`}
+          >
+            <span className="w-5 h-5 bg-white rounded-full block" />
+          </button>
+        </div>
+
+        {addQuiz && (
+          <QuizBuilder
+            question={q1} setQuestion={setQ1}
+            options={q1Options} setOptions={setQ1Options}
+            correct={q1Correct} setCorrect={setQ1Correct}
+          />
+        )}
 
         {myProducts.length > 0 && (
           <div>
@@ -237,12 +313,24 @@ export default function UploadReelPage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
+        {uploading && (
+          <div>
+            <div className="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-clay h-2.5 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-stone-500 mt-1">{progressLabel} {progress}%</p>
+          </div>
+        )}
+
         <button
           onClick={handleSubmit}
           disabled={uploading}
           className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
         >
-          {uploading ? 'Uploading…' : 'Publish Reel'}
+          {uploading ? `Uploading… ${progress}%` : 'Publish Reel'}
         </button>
       </div>
     </div>
@@ -266,9 +354,8 @@ function Field({
 }
 
 function QuizBuilder({
-  label, question, setQuestion, options, setOptions, correct, setCorrect,
+  question, setQuestion, options, setOptions, correct, setCorrect,
 }: {
-  label: string
   question: string
   setQuestion: (v: string) => void
   options: string[]
@@ -278,7 +365,6 @@ function QuizBuilder({
 }) {
   return (
     <div className="border border-stone-200 rounded-xl p-3">
-      <p className="text-sm font-semibold text-stone-800 mb-2">{label}</p>
       <input
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
