@@ -1,0 +1,170 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { BadgeCheck } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
+
+type Notification = {
+  id: string
+  category: string
+  title: string
+  body: string | null
+  related_user_id: string | null
+  is_read: boolean
+  created_at: string
+}
+
+type FollowRequest = {
+  follower_id: string
+  full_name: string | null
+  username: string | null
+  avatar_url: string | null
+}
+
+export default function NotificationsPage() {
+  const { user } = useAuth()
+  const [tab, setTab] = useState<'all' | 'requests'>('all')
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [requests, setRequests] = useState<FollowRequest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  async function load() {
+    setLoading(true)
+    const [notifRes, reqRes] = await Promise.all([
+      supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50),
+      supabase.rpc('get_pending_follow_requests'),
+    ])
+    if (notifRes.data) setNotifications(notifRes.data as Notification[])
+    if (reqRes.data) setRequests(reqRes.data as FollowRequest[])
+    setLoading(false)
+  }
+
+  async function acceptRequest(followerId: string) {
+    await supabase.rpc('accept_follow_request', { p_follower_id: followerId })
+    setRequests((prev) => prev.filter((r) => r.follower_id !== followerId))
+  }
+
+  async function rejectRequest(followerId: string) {
+    await supabase.rpc('reject_follow_request', { p_follower_id: followerId })
+    setRequests((prev) => prev.filter((r) => r.follower_id !== followerId))
+  }
+
+  async function followBack(userId: string) {
+    await supabase.rpc('toggle_follow', { p_target_user_id: userId })
+    load()
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto pb-24 px-4 pt-10 text-center">
+        <p className="text-stone-500 text-sm">Notifications dekhne ke liye sign in karo.</p>
+        <Link href="/login" className="text-clay font-semibold text-sm mt-2 inline-block">Sign In</Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-md mx-auto pb-24 px-4 pt-6">
+      <h1 className="text-xl font-bold text-clay mb-4">Notifications</h1>
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setTab('all')}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold ${tab === 'all' ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'}`}
+        >
+          All
+        </button>
+        <button
+          onClick={() => setTab('requests')}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 ${tab === 'requests' ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'}`}
+        >
+          Requests
+          {requests.length > 0 && (
+            <span className="bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+              {requests.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-center text-stone-400 text-sm pt-10">Loading…</p>
+      ) : tab === 'requests' ? (
+        requests.length === 0 ? (
+          <p className="text-center text-stone-400 text-sm pt-10">Koi pending follow request nahi hai.</p>
+        ) : (
+          <div className="space-y-3">
+            {requests.map((r) => (
+              <div key={r.follower_id} className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-stone-200 overflow-hidden flex-shrink-0">
+                    {r.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-stone-400 text-white font-bold text-sm">
+                        {(r.full_name || r.username || 'U')[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-stone-900 truncate">{r.full_name || 'User'}</p>
+                    <p className="text-xs text-stone-400">
+                      {r.username ? `@${r.username} ` : ''}aapko follow karna chahte hain
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button onClick={() => acceptRequest(r.follower_id)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-clay text-white">
+                    Accept
+                  </button>
+                  <button onClick={() => rejectRequest(r.follower_id)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-stone-100 text-stone-600">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : notifications.length === 0 ? (
+        <p className="text-center text-stone-400 text-sm pt-10">Koi notification nahi hai abhi.</p>
+      ) : (
+        <div className="space-y-1">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className={`flex items-start gap-3 px-1 py-3 border-b border-stone-100 ${!n.is_read ? 'bg-amber-50/50' : ''}`}
+            >
+              <span className="text-xl flex-shrink-0">
+                {n.category === 'reward' ? '🪙' : n.category === 'social' ? '👤' : '🔔'}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-stone-900">{n.title}</p>
+                {n.body && <p className="text-xs text-stone-500 mt-0.5">{n.body}</p>}
+                <p className="text-[10px] text-stone-400 mt-1">
+                  {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+              {n.category === 'social' && n.related_user_id && (
+                <button
+                  onClick={() => followBack(n.related_user_id!)}
+                  className="ml-auto text-[11px] font-bold px-2.5 py-1 rounded-full bg-clay text-white flex-shrink-0"
+                >
+                  Follow Back
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
