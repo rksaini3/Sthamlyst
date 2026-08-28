@@ -90,7 +90,7 @@ export default function ReelFeed({ themeFilter }: { themeFilter?: string | null 
     ])
 
     if ((creatorRes as any).error) {
-      console.error('profiles fetch error (check that username/avatar_url columns exist):', (creatorRes as any).error)
+      console.error('profiles fetch error:', (creatorRes as any).error)
     }
 
     const pMap: Record<string, TaggedProduct> = {}
@@ -310,33 +310,37 @@ function LessonCard({
           </div>
         )}
 
-        {/* Top: creator handle row — Instagram/YouTube style */}
         <div className="absolute top-3 left-3 right-3 flex items-center gap-2 pointer-events-none">
-          <div className="w-8 h-8 rounded-full bg-stone-300 overflow-hidden flex-shrink-0 ring-1 ring-white/30 pointer-events-auto">
-            {creator?.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-stone-500 text-white text-xs font-bold">
-                {(creator?.full_name || creator?.username || 'U')[0].toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 min-w-0 pointer-events-auto">
-            <span className="text-white text-sm font-semibold truncate drop-shadow-sm">
-              {creator?.full_name || 'Creator'}
-            </span>
-            {creator?.username && (
-              <span className="text-white/75 text-xs truncate drop-shadow-sm">@{creator.username}</span>
-            )}
-            {creator?.is_verified && <BadgeCheck size={14} className="text-sky-400 fill-sky-400/20 flex-shrink-0" />}
-          </div>
+          <Link
+            href={creator?.username ? `/creator/${creator.username}` : '#'}
+            className="flex items-center gap-2 bg-black/45 rounded-full pl-1 pr-2 py-1 pointer-events-auto max-w-[70%]"
+          >
+            <div className="w-7 h-7 rounded-full bg-stone-300 overflow-hidden flex-shrink-0 ring-1 ring-white/30">
+              {creator?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-stone-500 text-white text-xs font-bold">
+                  {(creator?.full_name || creator?.username || 'U')[0].toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-white text-sm font-semibold truncate">
+                {creator?.full_name || 'Creator'}
+              </span>
+              {creator?.username && (
+                <span className="text-white/80 text-xs truncate">@{creator.username}</span>
+              )}
+              {creator?.is_verified && <BadgeCheck size={14} className="text-sky-400 fill-sky-400/20 flex-shrink-0" />}
+            </div>
+          </Link>
           {lesson.is_user_generated && lesson.creator_id && !isMe && (
             <button
               onClick={onToggleFollow}
-              className={`ml-1 text-[11px] font-bold px-3 py-1 rounded-md flex-shrink-0 whitespace-nowrap pointer-events-auto ${
+              className={`text-[11px] font-bold px-3 py-1.5 rounded-full flex-shrink-0 whitespace-nowrap pointer-events-auto ${
                 followStatus === 'accepted' || followStatus === 'requested'
-                  ? 'bg-white/15 text-white border border-white/40'
+                  ? 'bg-black/45 text-white border border-white/40'
                   : 'bg-white text-black'
               }`}
             >
@@ -345,7 +349,6 @@ function LessonCard({
           )}
         </div>
 
-        {/* Bottom-left: title + description + product */}
         <div className="absolute bottom-4 left-3 right-16 pointer-events-none">
           <p className="text-white text-sm font-semibold drop-shadow-sm">{lesson.title}</p>
           {lesson.description && (
@@ -379,7 +382,6 @@ function LessonCard({
           )}
         </div>
 
-        {/* Right side: real icon action bar */}
         <div className="absolute bottom-4 right-2 flex flex-col items-center gap-5 z-10">
           <button onClick={onToggleLike} className="flex flex-col items-center text-white">
             <Heart size={26} className={liked ? 'fill-red-500 text-red-500' : 'fill-none text-white'} strokeWidth={liked ? 0 : 2} />
