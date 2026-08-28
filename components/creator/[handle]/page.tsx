@@ -1,0 +1,150 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowLeft, BadgeCheck } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthProvider'
+
+type PublicProfile = {
+  id: string
+  full_name: string | null
+  username: string | null
+  bio: string | null
+  city: string | null
+  avatar_url: string | null
+  is_verified: boolean
+  is_private: boolean
+  followers_count: number
+  following_count: number
+  posts_count: number
+  my_follow_status: 'none' | 'requested' | 'accepted'
+  follows_me: boolean
+}
+
+export default function CreatorProfilePage() {
+  const params = useParams()
+  const handle = params.handle as string
+  const { user } = useAuth()
+  const router = useRouter()
+  const [profile, setProfile] = useState<PublicProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [followBusy, setFollowBusy] = useState(false)
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle])
+
+  async function load() {
+    setLoading(true)
+    const { data, error } = await supabase.rpc('get_public_profile', { p_username: handle })
+    if (error || !data) {
+      setNotFound(true)
+    } else {
+      setProfile(data as PublicProfile)
+    }
+    setLoading(false)
+  }
+
+  async function toggleFollow() {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+    if (!profile) return
+    setFollowBusy(true)
+    const { data, error } = await supabase.rpc('toggle_follow', { p_target_user_id: profile.id })
+    setFollowBusy(false)
+    if (!error) {
+      load()
+    }
+  }
+
+  if (loading) {
+    return <p className="text-center text-stone-400 text-sm pt-20">Loading…</p>
+  }
+
+  if (notFound || !profile) {
+    return (
+      <div className="max-w-md mx-auto pb-24 px-4 pt-10 text-center">
+        <button onClick={() => router.back()} className="absolute left-4 top-6"><ArrowLeft size={20} /></button>
+        <p className="text-4xl mb-3">🔍</p>
+        <p className="text-stone-500 text-sm">Yeh creator nahi mila.</p>
+      </div>
+    )
+  }
+
+  const isMe = user?.id === profile.id
+
+  const followLabel =
+    profile.my_follow_status === 'accepted' ? 'Following' :
+    profile.my_follow_status === 'requested' ? 'Requested' :
+    profile.follows_me ? 'Follow Back' : 'Follow'
+
+  return (
+    <div className="max-w-md mx-auto pb-24 px-4 pt-6">
+      <button onClick={() => router.back()} className="mb-4"><ArrowLeft size={20} /></button>
+
+      <div className="flex items-center gap-4">
+        <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex-shrink-0">
+          {profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-stone-400 text-white text-2xl font-bold">
+              {(profile.full_name || profile.username || 'U')[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-lg font-bold text-stone-900">{profile.full_name || 'Creator'}</h1>
+            {profile.is_verified && <BadgeCheck size={16} className="text-sky-500 fill-sky-500/20" />}
+          </div>
+          {profile.username && <p className="text-sm text-stone-400">@{profile.username}</p>}
+          {profile.city && <p className="text-xs text-stone-500">{profile.city}</p>}
+        </div>
+      </div>
+
+      {profile.bio && <p className="text-sm text-stone-700 mt-3">{profile.bio}</p>}
+
+      <div className="flex items-center gap-6 mt-4">
+        <div className="text-center">
+          <p className="text-base font-bold text-stone-900">{profile.posts_count}</p>
+          <p className="text-[11px] text-stone-500">Posts</p>
+        </div>
+        <div className="text-center">
+          <p className="text-base font-bold text-stone-900">{profile.followers_count}</p>
+          <p className="text-[11px] text-stone-500">Followers</p>
+        </div>
+        <div className="text-center">
+          <p className="text-base font-bold text-stone-900">{profile.following_count}</p>
+          <p className="text-[11px] text-stone-500">Following</p>
+        </div>
+      </div>
+
+      {!isMe && (
+        <button
+          onClick={toggleFollow}
+          disabled={followBusy}
+          className={`mt-4 w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 ${
+            profile.my_follow_status === 'accepted' || profile.my_follow_status === 'requested'
+              ? 'bg-stone-100 text-stone-600'
+              : 'bg-clay text-white'
+          }`}
+        >
+          {followBusy ? 'Ek second…' : followLabel}
+        </button>
+      )}
+
+      {isMe && (
+        <Link href="/profile" className="mt-4 block text-center w-full py-2.5 rounded-xl text-sm font-bold bg-stone-100 text-stone-600">
+          Edit Your Profile
+        </Link>
+      )}
+    </div>
+  )
+}
