@@ -27,6 +27,8 @@ html, body {
    give the app a centered "app frame" feel (like WhatsApp Web)
    instead of leaving plain, unstyled empty space on both sides,
    which otherwise looks like a bug rather than a deliberate layout.
+   Only applies at real desktop widths — phones in "Request Desktop
+   Site" mode are a rare edge case and are not the target here.
    ============================================================ */
 
 @media (min-width: 768px) {
