@@ -7,6 +7,7 @@ import { Menu, Settings, Moon, Sun, Shield, LogOut, BadgeCheck } from 'lucide-re
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import CreatorIdentitySetup from '@/components/CreatorIdentitySetup'
+import EditProfileSheet from '@/components/EditProfileSheet'
 
 type Profile = {
   full_name: string | null
@@ -21,6 +22,9 @@ type Profile = {
   bio: string | null
   avatar_url: string | null
   is_verified: boolean
+  is_private: boolean
+  pronouns: string | null
+  gender: string | null
 }
 
 type Wallet = {
@@ -42,6 +46,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [debugError, setDebugError] = useState('')
   const [showIdentitySetup, setShowIdentitySetup] = useState(false)
+  const [showEditProfile, setShowEditProfile] = useState(false)
   const [contentTab, setContentTab] = useState<ContentTab>('reels')
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -80,7 +85,7 @@ export default function ProfilePage() {
 
     let { data, error } = await supabase
       .from('profiles')
-      .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url, is_verified')
+      .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url, is_verified, is_private, pronouns, gender')
       .eq('id', user.id)
       .single()
 
@@ -91,7 +96,7 @@ export default function ProfilePage() {
       }
       const retry = await supabase
         .from('profiles')
-        .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url, is_verified')
+        .select('full_name, city, sthamly_points, total_saved_rupees, is_seller, is_creator, seller_verified, skill_badges, username, bio, avatar_url, is_verified, is_private, pronouns, gender')
         .eq('id', user.id)
         .single()
       data = retry.data
@@ -194,6 +199,7 @@ export default function ProfilePage() {
               <h1 className="text-xl font-bold text-amber-900">
                 {profile.full_name || 'Your Profile'}
               </h1>
+              {profile.pronouns && <span className="text-sm text-stone-400">{profile.pronouns}</span>}
               {profile.is_verified && <BadgeCheck size={18} className="text-sky-500 fill-sky-500/20" />}
             </div>
             {profile.username && <p className="text-xs text-stone-400">@{profile.username}</p>}
@@ -275,6 +281,13 @@ export default function ProfilePage() {
         </div>
       )}
 
+      <button
+        onClick={() => setShowEditProfile(true)}
+        className="mt-3 w-full text-center border border-stone-300 dark:border-stone-600 text-stone-700 dark:text-stone-200 font-semibold py-2 rounded-xl text-sm"
+      >
+        ✏️ Edit Profile
+      </button>
+
       <div className="mt-4 bg-mehendi text-white rounded-2xl p-4">
         <span className="text-xs font-medium opacity-90">Total Saved via Learning</span>
         <p className="text-3xl font-extrabold mt-0.5">₹{profile.total_saved_rupees.toFixed(0)}</p>
@@ -282,18 +295,17 @@ export default function ProfilePage() {
 
       <div className="mt-3 bg-turmeric text-white rounded-2xl p-4">
         <div className="flex items-center justify-between">
-          <span className="font-semibold">Sthamly Coins</span>
+          <span className="font-semibold">Sthamly Points</span>
           <span className="text-2xl font-extrabold">🪙 {profile.sthamly_points}</span>
         </div>
         <Link
           href="/bazaar"
           className="mt-2 block text-center bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-xl text-xs"
         >
-          Redeem Coins in Bazaar →
+          Redeem Points in Bazaar →
         </Link>
       </div>
 
-      {/* Seller Earnings — only shown if Seller Mode is on */}
       {profile.is_seller && wallet && (
         <div className="mt-3 bg-mehendi text-white rounded-2xl p-4">
           <div className="flex items-center justify-between">
@@ -309,7 +321,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Active Plan — Free vs Seller Pro */}
       {profile.is_seller && wallet && (
         <div className="mt-3 bg-indigobrand text-white rounded-2xl p-4">
           <div className="flex items-center justify-between">
@@ -378,7 +389,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* My Content — Reels | Products | My Ads | Saved */}
       {user && (
         <div className="mt-8">
           <div className="flex gap-1 border-b border-stone-200 dark:border-stone-700">
@@ -401,6 +411,23 @@ export default function ProfilePage() {
         <CreatorIdentitySetup
           onClose={() => setShowIdentitySetup(false)}
           onSaved={() => { setShowIdentitySetup(false); load() }}
+        />
+      )}
+
+      {showEditProfile && profile && (
+        <EditProfileSheet
+          profile={{
+            full_name: profile.full_name,
+            username: profile.username,
+            bio: profile.bio,
+            city: profile.city,
+            avatar_url: profile.avatar_url,
+            is_private: profile.is_private,
+            pronouns: profile.pronouns,
+            gender: profile.gender,
+          }}
+          onClose={() => setShowEditProfile(false)}
+          onSaved={() => { setShowEditProfile(false); load() }}
         />
       )}
     </div>
