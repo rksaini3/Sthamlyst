@@ -25,15 +25,21 @@ type PublicProfile = {
 
 export default function CreatorProfilePage() {
   const params = useParams()
-  const handle = params.handle as string
+  const handle = (params?.handle as string) || ''
   const { user } = useAuth()
   const router = useRouter()
   const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [debugError, setDebugError] = useState('')
   const [followBusy, setFollowBusy] = useState(false)
 
   useEffect(() => {
+    if (!handle) {
+      setNotFound(true)
+      setLoading(false)
+      return
+    }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle])
@@ -41,17 +47,30 @@ export default function CreatorProfilePage() {
   // Log a profile view once we know whose profile this is (skips self-views on the backend)
   useEffect(() => {
     if (profile?.id) {
-      supabase.rpc('log_profile_view', { p_profile_id: profile.id, p_source: 'profile' })
+      supabase.rpc('log_profile_view', { p_profile_id: profile.id, p_source: 'profile' }).then(
+        () => {},
+        (err) => console.error('log_profile_view failed:', err)
+      )
     }
   }, [profile?.id])
 
   async function load() {
     setLoading(true)
-    const { data, error } = await supabase.rpc('get_public_profile', { p_username: handle })
-    if (error || !data) {
+    setNotFound(false)
+    setDebugError('')
+    try {
+      const { data, error } = await supabase.rpc('get_public_profile', { p_username: handle })
+      if (error) {
+        setDebugError(error.message)
+        setNotFound(true)
+      } else if (!data) {
+        setNotFound(true)
+      } else {
+        setProfile(data as PublicProfile)
+      }
+    } catch (err: any) {
+      setDebugError(err?.message || 'Unknown error')
       setNotFound(true)
-    } else {
-      setProfile(data as PublicProfile)
     }
     setLoading(false)
   }
@@ -63,7 +82,7 @@ export default function CreatorProfilePage() {
     }
     if (!profile) return
     setFollowBusy(true)
-    const { data, error } = await supabase.rpc('toggle_follow', { p_target_user_id: profile.id })
+    const { error } = await supabase.rpc('toggle_follow', { p_target_user_id: profile.id })
     setFollowBusy(false)
     if (!error) {
       load()
@@ -71,15 +90,25 @@ export default function CreatorProfilePage() {
   }
 
   if (loading) {
-    return <p className="text-center text-stone-400 text-sm pt-20">Loading…</p>
+    return (
+      <div className="max-w-md mx-auto pb-24 px-4 pt-6">
+        <button onClick={() => router.back()} className="mb-4"><ArrowLeft size={20} /></button>
+        <p className="text-center text-stone-400 text-sm pt-16">Loading…</p>
+      </div>
+    )
   }
 
   if (notFound || !profile) {
     return (
-      <div className="max-w-md mx-auto pb-24 px-4 pt-10 text-center">
-        <button onClick={() => router.back()} className="absolute left-4 top-6"><ArrowLeft size={20} /></button>
+      <div className="max-w-md mx-auto pb-24 px-4 pt-6 text-center">
+        <button onClick={() => router.back()} className="mb-4"><ArrowLeft size={20} /></button>
         <p className="text-4xl mb-3">🔍</p>
         <p className="text-stone-500 text-sm">Yeh creator nahi mila.</p>
+        {debugError && (
+          <p className="text-[11px] text-red-500 mt-4 max-w-xs mx-auto break-words">
+            Debug: {debugError}
+          </p>
+        )}
       </div>
     )
   }
@@ -123,14 +152,14 @@ export default function CreatorProfilePage() {
           <p className="text-base font-bold text-stone-900">{profile.posts_count}</p>
           <p className="text-[11px] text-stone-500">Posts</p>
         </div>
-        <div className="text-center">
+        <Link href={`/followers/${profile.id}?mode=followers`} className="text-center">
           <p className="text-base font-bold text-stone-900">{profile.followers_count}</p>
           <p className="text-[11px] text-stone-500">Followers</p>
-        </div>
-        <div className="text-center">
+        </Link>
+        <Link href={`/followers/${profile.id}?mode=following`} className="text-center">
           <p className="text-base font-bold text-stone-900">{profile.following_count}</p>
           <p className="text-[11px] text-stone-500">Following</p>
-        </div>
+        </Link>
       </div>
 
       {!isMe && (
