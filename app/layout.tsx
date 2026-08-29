@@ -15,7 +15,13 @@ const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono
 
 export const metadata: Metadata = {
   title: 'Sthamly — Learn & Earn',
-  description: 'Learn from local makers, earn Sthamly Coins, shop the local handmade bazaar.',
+  description: 'Learn from local makers, earn Sthamly Points, shop the local handmade bazaar.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Sthamly',
+  },
 }
 
 // Locks the viewport to a fixed, predictable scale on every load —
@@ -26,6 +32,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  themeColor: '#B5451B',
 }
 
 export default function RootLayout({
