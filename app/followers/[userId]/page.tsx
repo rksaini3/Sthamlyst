@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -12,9 +12,11 @@ type PersonRow = { id: string; full_name: string | null; username: string | null
 export default function FollowersPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const userId = params.userId as string
-  const [tab, setTab] = useState<'followers' | 'following'>('followers')
+  const initialTab = searchParams.get('mode') === 'following' ? 'following' : 'followers'
+  const [tab, setTab] = useState<'followers' | 'following'>(initialTab)
   const [people, setPeople] = useState<PersonRow[]>([])
   const [loading, setLoading] = useState(true)
   const [myFollows, setMyFollows] = useState<Set<string>>(new Set())
