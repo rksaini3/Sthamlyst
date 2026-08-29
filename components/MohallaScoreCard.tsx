@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/AuthProvider'
 export default function MohallaScoreCard() {
   const { user } = useAuth()
   const [mohalla, setMohalla] = useState<string | null>(null)
-  const [totalCoins, setTotalCoins] = useState(0)
+  const [totalPoints, setTotalPoints] = useState(0)
   const [bonusUnlocked, setBonusUnlocked] = useState(false)
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function MohallaScoreCard() {
         .single()
 
       if (score) {
-        setTotalCoins(score.total_coins)
+        setTotalPoints(score.total_coins)
         setBonusUnlocked(score.bonus_unlocked)
       }
     }
@@ -41,13 +41,13 @@ export default function MohallaScoreCard() {
   if (!mohalla) return null
 
   const target = 10000
-  const progress = Math.min((totalCoins / target) * 100, 100)
+  const progress = Math.min((totalPoints / target) * 100, 100)
 
   return (
     <div className="mx-4 mt-3 bg-white dark:bg-stone-900 border border-turmeric/30 rounded-2xl p-3">
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-xs font-bold text-stone-800 dark:text-stone-100">🏘️ {mohalla} Mohalla Score</p>
-        <span className="text-[11px] text-turmeric font-semibold">{totalCoins.toLocaleString('en-IN')} / {target.toLocaleString('en-IN')}</span>
+        <span className="text-[11px] text-turmeric font-semibold">{totalPoints.toLocaleString('en-IN')} / {target.toLocaleString('en-IN')} points</span>
       </div>
       <div className="w-full h-2 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
         <div className="h-full bg-turmeric rounded-full transition-all" style={{ width: `${progress}%` }} />
@@ -55,7 +55,7 @@ export default function MohallaScoreCard() {
       <p className="text-[10px] text-stone-400 mt-1">
         {bonusUnlocked
           ? '🎉 Is hafte ka bonus unlock ho gaya — sabko mila!'
-          : `${target - totalCoins} coins aur — poore mohalle ke liye ek extra local bonus unlock hoga`}
+          : `${target - totalPoints} activity points aur — poore mohalle ke liye ek extra local bonus unlock hoga`}
       </p>
     </div>
   )
