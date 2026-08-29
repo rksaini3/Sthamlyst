@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
-import { Menu, Settings, Moon, Sun, Shield, LogOut, BadgeCheck } from 'lucide-react'
+import { Menu, Settings, Moon, Sun, Shield, LogOut, BadgeCheck, QrCode, ScanLine } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import CreatorIdentitySetup from '@/components/CreatorIdentitySetup'
 import EditProfileSheet from '@/components/EditProfileSheet'
+import ShareProfileSheet from '@/components/ShareProfileSheet'
+import QRScannerSheet from '@/components/QRScannerSheet'
+import ProfessionalDashboard from '@/components/ProfessionalDashboard'
 
 type Profile = {
   full_name: string | null
@@ -51,6 +54,11 @@ export default function ProfilePage() {
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDark, setIsDark] = useState(false)
+
+  // New: QR share / scan / professional dashboard sheets
+  const [showShareQR, setShowShareQR] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('sthamly-theme')
@@ -207,63 +215,79 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="relative">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => setShowShareQR(true)}
             className="text-stone-500 dark:text-stone-300 border border-stone-300 dark:border-stone-600 rounded-full p-1.5"
-            aria-label="Menu"
+            aria-label="Share profile QR"
           >
-            <Menu size={18} />
+            <QrCode size={18} />
           </button>
 
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-9 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1 z-20 min-w-[180px]">
-                <Link
-                  href="/settings"
-                  onClick={() => setMenuOpen(false)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
-                >
-                  <Settings size={16} /> Settings
-                </Link>
-                <Link
-                  href="/settings/privacy"
-                  onClick={() => setMenuOpen(false)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
-                >
-                  <Shield size={16} /> Privacy
-                </Link>
-                <button
-                  onClick={toggleDarkMode}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
-                >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? 'Light Mode' : 'Dark Mode'}
-                </button>
-                {!profile.is_verified && (
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="text-stone-500 dark:text-stone-300 border border-stone-300 dark:border-stone-600 rounded-full p-1.5"
+              aria-label="Menu"
+            >
+              <Menu size={18} />
+            </button>
+
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-9 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1 z-20 min-w-[180px]">
                   <Link
-                    href="/verify"
+                    href="/settings"
                     onClick={() => setMenuOpen(false)}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
                   >
-                    <BadgeCheck size={16} /> Apply for Verified Badge
+                    <Settings size={16} /> Settings
                   </Link>
-                )}
-                <div className="my-1 border-t border-stone-100 dark:border-stone-700" />
-                <button
-                  onClick={handleSignOut}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                >
-                  <LogOut size={16} /> Sign Out
-                </button>
-              </div>
-            </>
-          )}
+                  <Link
+                    href="/settings/privacy"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                  >
+                    <Shield size={16} /> Privacy
+                  </Link>
+                  <button
+                    onClick={() => { setMenuOpen(false); setShowScanner(true) }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                  >
+                    <ScanLine size={16} /> Scan QR Code
+                  </button>
+                  <button
+                    onClick={toggleDarkMode}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                  >
+                    {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                    {isDark ? 'Light Mode' : 'Dark Mode'}
+                  </button>
+                  {!profile.is_verified && (
+                    <Link
+                      href="/verify"
+                      onClick={() => setMenuOpen(false)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700"
+                    >
+                      <BadgeCheck size={16} /> Apply for Verified Badge
+                    </Link>
+                  )}
+                  <div className="my-1 border-t border-stone-100 dark:border-stone-700" />
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                  >
+                    <LogOut size={16} /> Sign Out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Social bar — Followers | Following | Posts */}
+      {/* Social bar — Followers | Following | Posts | Saved (₹) */}
       {user && wallet && (
         <div className="flex items-center gap-5 mt-4">
           <Link href={`/followers/${user.id}`} className="text-center">
@@ -278,6 +302,10 @@ export default function ProfilePage() {
             <p className="text-base font-bold text-stone-900 dark:text-stone-100">{wallet.posts_count}</p>
             <p className="text-[11px] text-stone-500">Posts</p>
           </div>
+          <div className="text-center">
+            <p className="text-base font-bold text-mehendi">₹{profile.total_saved_rupees.toFixed(0)}</p>
+            <p className="text-[11px] text-stone-500">Saved</p>
+          </div>
         </div>
       )}
 
@@ -287,11 +315,6 @@ export default function ProfilePage() {
       >
         ✏️ Edit Profile
       </button>
-
-      <div className="mt-4 bg-mehendi text-white rounded-2xl p-4">
-        <span className="text-xs font-medium opacity-90">Total Saved via Learning</span>
-        <p className="text-3xl font-extrabold mt-0.5">₹{profile.total_saved_rupees.toFixed(0)}</p>
-      </div>
 
       <div className="mt-3 bg-turmeric text-white rounded-2xl p-4">
         <div className="flex items-center justify-between">
@@ -305,6 +328,14 @@ export default function ProfilePage() {
           Redeem Points in Bazaar →
         </Link>
       </div>
+
+      <button
+        onClick={() => setShowDashboard(true)}
+        className="mt-4 w-full text-left bg-stone-100 dark:bg-stone-800 rounded-2xl p-4"
+      >
+        <p className="text-sm font-bold text-stone-900 dark:text-stone-100">Professional dashboard</p>
+        <p className="text-xs text-stone-500 mt-0.5">See your insights and tools →</p>
+      </button>
 
       {profile.is_seller && wallet && (
         <div className="mt-3 bg-mehendi text-white rounded-2xl p-4">
@@ -430,6 +461,12 @@ export default function ProfilePage() {
           onSaved={() => { setShowEditProfile(false); load() }}
         />
       )}
+
+      {showShareQR && profile.username && (
+        <ShareProfileSheet handle={profile.username} onClose={() => setShowShareQR(false)} />
+      )}
+      {showScanner && <QRScannerSheet onClose={() => setShowScanner(false)} />}
+      {showDashboard && <ProfessionalDashboard onClose={() => setShowDashboard(false)} />}
     </div>
   )
 }
