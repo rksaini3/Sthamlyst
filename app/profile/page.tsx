@@ -302,11 +302,11 @@ export default function ProfilePage() {
       {/* Social bar — Followers | Following | Posts | Saved (₹) — independent of wallet RPC */}
       {user && stats && (
         <div className="flex items-center gap-5 mt-4">
-          <Link href={`/followers/${user.id}`} className="text-center">
+          <Link href={`/followers/${user.id}?mode=followers`} className="text-center">
             <p className="text-base font-bold text-stone-900 dark:text-stone-100">{stats.followers_count}</p>
             <p className="text-[11px] text-stone-500">Followers</p>
           </Link>
-          <Link href={`/followers/${user.id}`} className="text-center">
+          <Link href={`/followers/${user.id}?mode=following`} className="text-center">
             <p className="text-base font-bold text-stone-900 dark:text-stone-100">{stats.following_count}</p>
             <p className="text-[11px] text-stone-500">Following</p>
           </Link>
