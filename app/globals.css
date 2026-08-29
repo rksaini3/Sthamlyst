@@ -21,3 +21,30 @@ html, body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ============================================================
+   Desktop / laptop responsive fix — on screens wider than a phone,
+   give the app a centered "app frame" feel (like WhatsApp Web)
+   instead of leaving plain, unstyled empty space on both sides,
+   which otherwise looks like a bug rather than a deliberate layout.
+   ============================================================ */
+
+@media (min-width: 768px) {
+  body {
+    background: linear-gradient(135deg, #FCEEDF 0%, #F0DDC8 100%);
+  }
+
+  .max-w-md.mx-auto {
+    background: #ffffff;
+    min-height: 100vh;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.08);
+    border-left: 1px solid rgba(0, 0, 0, 0.04);
+    border-right: 1px solid rgba(0, 0, 0, 0.04);
+  }
+}
+
+@media (min-width: 1024px) {
+  .max-w-md.mx-auto {
+    max-width: 480px;
+  }
+}
