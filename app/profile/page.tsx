@@ -34,6 +34,9 @@ type Wallet = {
   seller_earnings: number
   is_seller_pro: boolean
   plan_renews_at: string | null
+}
+
+type Stats = {
   followers_count: number
   following_count: number
   posts_count: number
@@ -45,6 +48,7 @@ export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [debugError, setDebugError] = useState('')
@@ -120,6 +124,14 @@ export default function ProfilePage() {
       console.error('get_wallet_summary error:', walletError)
     } else if (walletData) {
       setWallet(walletData as Wallet)
+    }
+
+    // Followers / Following / Posts — independent of wallet, so it always shows
+    const { data: statsData, error: statsError } = await supabase.rpc('get_profile_stats')
+    if (statsError) {
+      console.error('get_profile_stats error:', statsError)
+    } else if (statsData) {
+      setStats(statsData as Stats)
     }
 
     setLoading(false)
@@ -287,19 +299,19 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Social bar — Followers | Following | Posts | Saved (₹) */}
-      {user && wallet && (
+      {/* Social bar — Followers | Following | Posts | Saved (₹) — independent of wallet RPC */}
+      {user && stats && (
         <div className="flex items-center gap-5 mt-4">
           <Link href={`/followers/${user.id}`} className="text-center">
-            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{wallet.followers_count}</p>
+            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{stats.followers_count}</p>
             <p className="text-[11px] text-stone-500">Followers</p>
           </Link>
           <Link href={`/followers/${user.id}`} className="text-center">
-            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{wallet.following_count}</p>
+            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{stats.following_count}</p>
             <p className="text-[11px] text-stone-500">Following</p>
           </Link>
           <div className="text-center">
-            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{wallet.posts_count}</p>
+            <p className="text-base font-bold text-stone-900 dark:text-stone-100">{stats.posts_count}</p>
             <p className="text-[11px] text-stone-500">Posts</p>
           </div>
           <div className="text-center">
