@@ -24,10 +24,6 @@ export const metadata: Metadata = {
   },
 }
 
-// Locks the viewport to a fixed, predictable scale on every load —
-// including the fresh full-page reload that happens right after coming
-// back from Google Sign-In — so the page never renders zoomed in/out
-// unexpectedly.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -43,7 +39,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${notoDevanagari.variable} ${plexMono.variable}`}>
       <head>
-        {/* Google Analytics Tag */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-63TFFQXTB2"
           strategy="afterInteractive"
@@ -54,6 +49,27 @@ export default function RootLayout({
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
             gtag('config', 'G-63TFFQXTB2');
+          `}
+        </Script>
+        {/*
+          One-time cleanup for machines that already have an OLD service
+          worker registered from before this PWA fix existed. An old SW
+          can keep serving stale JS chunk references forever on its own,
+          so on first load we force-unregister anything old and reload
+          once. The sessionStorage flag stops this from looping.
+        */}
+        <Script id="sw-cleanup" strategy="beforeInteractive">
+          {`
+            if ('serviceWorker' in navigator && !sessionStorage.getItem('sw-cleaned')) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                if (regs.length > 0) {
+                  sessionStorage.setItem('sw-cleaned', '1');
+                  Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
+                    window.location.reload();
+                  });
+                }
+              });
+            }
           `}
         </Script>
       </head>
