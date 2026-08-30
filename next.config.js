@@ -3,29 +3,11 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: true,   // ← TEMPORARILY true kar do (PWA poori tarah band)
   cleanupOutdatedCaches: true,
   fallbacks: {
     document: '/offline.html',
   },
-  runtimeCaching: [
-    {
-      urlPattern: ({ url }) => url.hostname.includes('supabase.co'),
-      handler: 'NetworkOnly',
-    },
-    {
-      urlPattern: /^https?.*/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'pages-cache',
-        networkTimeoutSeconds: 3,
-        expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60,
-        },
-      },
-    },
-  ],
 })
 
 const nextConfig = {
