@@ -21,3 +21,8 @@
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# next-pwa generated files (auto-built, don't commit)
+public/sw.js
+public/workbox-*.js
+public/fallback-*.js
