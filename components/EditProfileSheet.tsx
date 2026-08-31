@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -15,6 +15,8 @@ type ProfileFields = {
   pronouns: string | null
   gender: string | null
 }
+
+const MAX_AVATAR_MB = 5
 
 export default function EditProfileSheet({
   profile,
@@ -36,48 +38,79 @@ export default function EditProfileSheet({
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState(profile.avatar_url)
 
-  const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'same'>('idle')
-  const [checkTimer, setCheckTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'same' | 'too_short'>('idle')
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (checkTimerRef.current) clearTimeout(checkTimerRef.current)
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    }
+  }, [])
 
   function handleUsernameChange(value: string) {
     const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, '')
     setUsername(cleaned)
 
-    if (checkTimer) clearTimeout(checkTimer)
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current)
 
     if (!cleaned || cleaned === profile.username) {
       setHandleStatus(cleaned === profile.username ? 'same' : 'idle')
       return
     }
     if (cleaned.length < 3) {
-      setHandleStatus('idle')
+      setHandleStatus('too_short')
       return
     }
 
     setHandleStatus('checking')
-    const timer = setTimeout(async () => {
+    checkTimerRef.current = setTimeout(async () => {
       const { data, error } = await supabase.rpc('check_handle_availability', { p_handle: cleaned })
+      if (!mountedRef.current) return // component closed while request was in-flight
       if (error) {
         setHandleStatus('idle')
         return
       }
       setHandleStatus(data ? 'available' : 'taken')
     }, 500)
-    setCheckTimer(timer)
   }
 
   function handleAvatarChange(file: File | null) {
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setError('Sirf image files allowed hain (JPG, PNG, etc.)')
+      return
+    }
+    if (file.size > MAX_AVATAR_MB * 1024 * 1024) {
+      setError(`Photo ${MAX_AVATAR_MB}MB se choti honi chahiye. Abhi ${(file.size / (1024 * 1024)).toFixed(1)}MB hai.`)
+      return
+    }
+
+    setError('')
     setAvatarFile(file)
-    if (file) setAvatarPreview(URL.createObjectURL(file))
+
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    const newPreviewUrl = URL.createObjectURL(file)
+    previewUrlRef.current = newPreviewUrl
+    setAvatarPreview(newPreviewUrl)
   }
 
   async function handleSave() {
     if (!user) return
     if (handleStatus === 'taken') {
       setError('Yeh handle already liya ja chuka hai — koi doosra try karo.')
+      return
+    }
+    if (handleStatus === 'too_short') {
+      setError('Handle kam se kam 3 letters ka hona chahiye.')
       return
     }
 
@@ -128,6 +161,8 @@ export default function EditProfileSheet({
 
     onSaved()
   }
+
+  const saveDisabled = saving || handleStatus === 'taken' || handleStatus === 'checking' || handleStatus === 'too_short'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
@@ -211,6 +246,7 @@ export default function EditProfileSheet({
                 {handleStatus === 'available' && <span className="text-mehendi">Available ✅</span>}
                 {handleStatus === 'taken' && <span className="text-red-500">Taken ❌</span>}
                 {handleStatus === 'same' && <span className="text-stone-400">Current</span>}
+                {handleStatus === 'too_short' && <span className="text-red-500">Min 3 letters</span>}
               </span>
             </div>
             <p className="text-[10px] text-stone-400 mt-1">sthamly.com/creator/{username || 'yourhandle'}</p>
@@ -226,6 +262,7 @@ export default function EditProfileSheet({
               className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm mt-1"
               placeholder="Apne baare mein kuch likho..."
             />
+            <p className="text-[10px] text-stone-400 mt-0.5 text-right">{bio.length}/150</p>
           </div>
 
           <div>
@@ -267,7 +304,7 @@ export default function EditProfileSheet({
         <div className="px-4 py-3 border-t border-stone-100 flex-shrink-0">
           <button
             onClick={handleSave}
-            disabled={saving || handleStatus === 'taken' || handleStatus === 'checking'}
+            disabled={saveDisabled}
             className="w-full bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save Changes'}
