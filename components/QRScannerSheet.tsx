@@ -5,6 +5,9 @@ import { X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import jsQR from 'jsqr'
 
+// Set this to your real production domain(s).
+const ALLOWED_HOSTS = ['sthamly.com', 'www.sthamly.com']
+
 export default function QRScannerSheet({ onClose }: { onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -13,7 +16,9 @@ export default function QRScannerSheet({ onClose }: { onClose: () => void }) {
   const scanningRef = useRef(true)
 
   useEffect(() => {
-    let stream: MediaStream
+    // Fix 1: initialize to null so it's never "used before assigned"
+    // under TypeScript strict mode.
+    let stream: MediaStream | null = null
 
     async function start() {
       try {
@@ -35,7 +40,9 @@ export default function QRScannerSheet({ onClose }: { onClose: () => void }) {
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.width = video.videoWidth
         canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d')
+        // Fix 3: willReadFrequently avoids the Chrome perf warning and
+        // speeds up repeated getImageData calls in this scan loop.
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -53,6 +60,11 @@ export default function QRScannerSheet({ onClose }: { onClose: () => void }) {
     function handleResult(url: string) {
       try {
         const u = new URL(url)
+        // Fix 2: verify the hostname too, not just the path — otherwise
+        // any site with a /creator/xyz path gets treated as valid.
+        if (!ALLOWED_HOSTS.includes(u.hostname)) {
+          throw new Error('wrong domain')
+        }
         const parts = u.pathname.split('/').filter(Boolean)
         const idx = parts.indexOf('creator')
         if (idx !== -1 && parts[idx + 1]) {
@@ -62,7 +74,7 @@ export default function QRScannerSheet({ onClose }: { onClose: () => void }) {
           return
         }
       } catch {
-        // not a valid sthamly URL
+        // not a valid Sthamly URL
       }
       setError('Yeh Sthamly QR code nahi lagta. Dobara try karo.')
       scanningRef.current = true
