@@ -40,6 +40,9 @@ export default function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([])
   const [followRequests, setFollowRequests] = useState<FollowRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'social' | 'order' | 'requests'>('all')
 
   useEffect(() => {
@@ -49,31 +52,61 @@ export default function NotificationsPage() {
   }, [authLoading, user])
 
   async function load() {
+    if (!user) return
+    setLoadError('')
     const [notifRes, reqRes] = await Promise.all([
       supabase
         .from('notifications')
         .select('id, category, title, body, is_read, created_at')
+        .eq('user_id', user.id) // explicit filter — never rely on RLS alone
         .order('created_at', { ascending: false })
         .limit(50),
       supabase.rpc('get_pending_follow_requests'),
     ])
+
+    if (notifRes.error || reqRes.error) {
+      setLoadError('Notifications load nahi ho payin. Refresh karke try karo.')
+    }
     if (notifRes.data) setItems(notifRes.data as Notification[])
     if (reqRes.data) setFollowRequests(reqRes.data as FollowRequest[])
     setLoading(false)
   }
 
   async function markRead(id: string) {
+    const prevItems = items
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
-    await supabase.rpc('mark_notification_read', { p_id: id })
+
+    const { error } = await supabase.rpc('mark_notification_read', { p_id: id })
+    if (error) {
+      setItems(prevItems) // rollback on failure
+    }
   }
 
   async function acceptRequest(followerId: string) {
-    await supabase.rpc('accept_follow_request', { p_follower_id: followerId })
+    if (pendingAction) return
+    setActionError('')
+    setPendingAction(followerId)
+    const { error } = await supabase.rpc('accept_follow_request', { p_follower_id: followerId })
+    setPendingAction(null)
+
+    if (error) {
+      setActionError('Accept nahi ho paya: ' + error.message)
+      return
+    }
     setFollowRequests((prev) => prev.filter((r) => r.follower_id !== followerId))
   }
 
   async function rejectRequest(followerId: string) {
-    await supabase.rpc('reject_follow_request', { p_follower_id: followerId })
+    if (pendingAction) return
+    setActionError('')
+    setPendingAction(followerId)
+    const { error } = await supabase.rpc('reject_follow_request', { p_follower_id: followerId })
+    setPendingAction(null)
+
+    if (error) {
+      setActionError('Reject nahi ho paya: ' + error.message)
+      return
+    }
     setFollowRequests((prev) => prev.filter((r) => r.follower_id !== followerId))
   }
 
@@ -117,6 +150,9 @@ export default function NotificationsPage() {
         </button>
       </div>
 
+      {loadError && <p className="text-center text-red-500 text-xs mt-3">{loadError}</p>}
+      {actionError && <p className="text-center text-red-500 text-xs mt-3">{actionError}</p>}
+
       {filter === 'requests' ? (
         <div className="mt-4 space-y-3">
           {followRequests.length === 0 ? (
@@ -143,11 +179,19 @@ export default function NotificationsPage() {
                   </div>
                 </div>
                 <div className="flex gap-1.5 flex-shrink-0">
-                  <button onClick={() => acceptRequest(r.follower_id)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-clay text-white">
-                    Accept
+                  <button
+                    onClick={() => acceptRequest(r.follower_id)}
+                    disabled={pendingAction === r.follower_id}
+                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-clay text-white disabled:opacity-50"
+                  >
+                    {pendingAction === r.follower_id ? '...' : 'Accept'}
                   </button>
-                  <button onClick={() => rejectRequest(r.follower_id)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-stone-100 text-stone-600">
-                    Delete
+                  <button
+                    onClick={() => rejectRequest(r.follower_id)}
+                    disabled={pendingAction === r.follower_id}
+                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-stone-100 text-stone-600 disabled:opacity-50"
+                  >
+                    {pendingAction === r.follower_id ? '...' : 'Delete'}
                   </button>
                 </div>
               </div>
