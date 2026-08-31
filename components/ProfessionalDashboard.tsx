@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Settings, History, GraduationCap, Lightbulb, TrendingUp, BadgeCheck, Send } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -15,10 +15,12 @@ type Insights = {
 
 export default function ProfessionalDashboard({ onClose }: { onClose: () => void }) {
   const [insights, setInsights] = useState<Insights | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.rpc('get_profile_insights', { p_days: 30 }).then(({ data }) => {
-      if (data) setInsights(data as Insights)
+    supabase.rpc('get_profile_insights', { p_days: 30 }).then(({ data, error }) => {
+      if (!error && data) setInsights(data as Insights)
+      setLoading(false)
     })
   }, [])
 
@@ -34,10 +36,20 @@ export default function ProfessionalDashboard({ onClose }: { onClose: () => void
         <h2 className="text-lg font-bold">Insights</h2>
         <p className="text-xs text-stone-400 mb-3">Last {insights?.period_days ?? 30} days</p>
 
-        <InsightRow label="Views" value={insights?.views ?? 0} />
-        <InsightRow label="Interactions" value={insights?.interactions ?? 0} />
-        <InsightRow label="New followers" value={insights?.new_followers ?? 0} />
-        <InsightRow label="Content you shared" value={insights?.content_shared ?? 0} />
+        {loading ? (
+          <div className="space-y-3 animate-pulse">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-10 bg-stone-100 dark:bg-stone-800 rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <InsightRow label="Views" value={insights?.views ?? 0} />
+            <InsightRow label="Interactions" value={insights?.interactions ?? 0} />
+            <InsightRow label="New followers" value={insights?.new_followers ?? 0} />
+            <InsightRow label="Content you shared" value={insights?.content_shared ?? 0} />
+          </>
+        )}
       </div>
 
       <div className="px-4 py-4 border-t border-stone-100 dark:border-stone-800">
@@ -62,7 +74,7 @@ function InsightRow({ label, value }: { label: string; value: number }) {
   )
 }
 
-function ToolRow({ icon, title, desc, tag }: { icon: React.ReactNode; title: string; desc?: string; tag?: string }) {
+function ToolRow({ icon, title, desc, tag }: { icon: ReactNode; title: string; desc?: string; tag?: string }) {
   return (
     <div className="flex items-center gap-3 py-3">
       <div className="text-stone-500">{icon}</div>
@@ -70,7 +82,7 @@ function ToolRow({ icon, title, desc, tag }: { icon: React.ReactNode; title: str
         <p className="text-sm font-semibold">{title}</p>
         {desc && <p className="text-xs text-stone-400">{desc}</p>}
       </div>
-      {tag && <span className="bg-indigobrand text-white text-[10px] font-bold px-2 py-1 rounded-full">{tag}</span>}
+      {tag && <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">{tag}</span>}
     </div>
   )
 }
