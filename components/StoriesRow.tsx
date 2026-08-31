@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { SyntheticEvent } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -21,6 +22,8 @@ type StoryGroup = {
   stories: Story[]
 }
 
+const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000
+
 export default function StoriesRow() {
   const { user } = useAuth()
   const [groups, setGroups] = useState<StoryGroup[]>([])
@@ -31,11 +34,21 @@ export default function StoriesRow() {
   }, [])
 
   async function load() {
-    const { data } = await supabase
+    // Fix: only fetch stories from the last 24 hours — previously this
+    // pulled every story ever posted, so nothing ever "expired" like a
+    // real Stories feature is expected to.
+    const since = new Date(Date.now() - STORY_LIFETIME_MS).toISOString()
+
+    const { data, error } = await supabase
       .from('stories')
       .select('id, user_id, media_url, media_type, caption, created_at, profiles:user_id ( full_name, avatar_url )')
+      .gte('created_at', since)
       .order('created_at', { ascending: true })
 
+    if (error) {
+      console.error('stories fetch failed:', error)
+      return
+    }
     if (!data) return
 
     const map = new Map<string, StoryGroup>()
@@ -65,16 +78,16 @@ export default function StoriesRow() {
   const otherGroups = groups.filter((g) => g.user_id !== user?.id)
 
   return (
-    <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 no-scrollbar">
+    <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 dark:border-stone-800 no-scrollbar">
       {/* Add Story — always first (leftmost) */}
       <Link
         href={user ? '/story/upload' : '/login'}
         className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
       >
-        <div className="w-14 h-14 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center">
+        <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 border-2 border-dashed border-stone-300 dark:border-stone-600 flex items-center justify-center">
           <span className="text-2xl text-amber-600 leading-none">+</span>
         </div>
-        <span className="text-[10px] text-stone-600">Add Story</span>
+        <span className="text-[10px] text-stone-600 dark:text-stone-400">Add Story</span>
       </Link>
 
       {/* Your Story — only shown if a story already exists, tap to VIEW it */}
@@ -84,7 +97,7 @@ export default function StoriesRow() {
           className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
-            <div className="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+            <div className="w-full h-full rounded-full bg-white dark:bg-stone-900 overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600 dark:text-stone-300">
               {myGroup.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={myGroup.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -93,7 +106,7 @@ export default function StoriesRow() {
               )}
             </div>
           </div>
-          <span className="text-[10px] text-stone-600">Your Story</span>
+          <span className="text-[10px] text-stone-600 dark:text-stone-400">Your Story</span>
         </button>
       )}
 
@@ -105,7 +118,7 @@ export default function StoriesRow() {
           className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
-            <div className="w-full h-full rounded-full bg-stone-200 overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600">
+            <div className="w-full h-full rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden flex items-center justify-center text-sm font-bold text-stone-600 dark:text-stone-300">
               {g.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={g.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -114,7 +127,7 @@ export default function StoriesRow() {
               )}
             </div>
           </div>
-          <span className="text-[10px] text-stone-600 truncate w-full text-center">
+          <span className="text-[10px] text-stone-600 dark:text-stone-400 truncate w-full text-center">
             {g.full_name || 'User'}
           </span>
         </button>
@@ -165,7 +178,7 @@ function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => voi
     if (index > 0) setIndex(index - 1)
   }
 
-  function handleVideoProgress(e: React.SyntheticEvent<HTMLVideoElement>) {
+  function handleVideoProgress(e: SyntheticEvent<HTMLVideoElement>) {
     const v = e.currentTarget
     if (v.duration) setProgress((v.currentTime / v.duration) * 100)
   }
@@ -195,7 +208,7 @@ function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => voi
           )}
         </div>
         <span className="text-white text-sm font-semibold flex-1">{group.full_name || 'User'}</span>
-        <button onClick={onClose} className="text-white text-2xl leading-none px-2">×</button>
+        <button onClick={onClose} className="text-white text-2xl leading-none px-2" aria-label="Close">×</button>
       </div>
 
       <div className="flex-1 flex items-center justify-center relative">
