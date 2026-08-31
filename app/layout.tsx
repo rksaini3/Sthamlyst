@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import Script from 'next/script'
+import type { ReactNode } from 'react'
 import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import GlobalHeader from '@/components/GlobalHeader'
 import ConnectivityToast from '@/components/ConnectivityToast'
+import AnalyticsConsent from '@/components/AnalyticsConsent'
 import { AuthProvider } from '@/lib/AuthProvider'
 import { ThemeProvider } from '@/lib/ThemeProvider'
 
@@ -38,25 +39,10 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${notoDevanagari.variable} ${plexMono.variable}`}>
-      <head>
-        {/* Google Analytics Tag */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-63TFFQXTB2"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-63TFFQXTB2');
-          `}
-        </Script>
-      </head>
       <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body">
         <ThemeProvider>
           <AuthProvider>
@@ -64,6 +50,9 @@ export default function RootLayout({
             <ConnectivityToast />
             {children}
             <BottomNav />
+            {/* Google Analytics only loads after the user accepts the
+                consent banner rendered inside this component. */}
+            <AnalyticsConsent />
           </AuthProvider>
         </ThemeProvider>
       </body>
