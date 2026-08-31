@@ -16,17 +16,31 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading || !user) return
+
     async function loadSavings() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('total_saved_rupees')
         .eq('id', user!.id)
         .single()
+      if (error) {
+        console.error('savings fetch failed:', error)
+        return
+      }
       if (data) setTotalSaved(data.total_saved_rupees)
     }
+
     loadSavings()
-    supabase.rpc('mark_sathi_active_today')
-  }, [authLoading, user])
+
+    supabase.rpc('mark_sathi_active_today').then(({ error }) => {
+      if (error) console.error('sathi streak mark failed:', error)
+    })
+    // Depend on user?.id (a primitive) rather than the whole user object —
+    // if useAuth() returns a new object reference on every render, depending
+    // on `user` here would re-fire this effect (and re-call the RPC) far
+    // more often than intended.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id])
 
   return (
     <div className="max-w-md mx-auto pb-24 min-h-dvh">
