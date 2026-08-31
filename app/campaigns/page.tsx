@@ -18,6 +18,7 @@ export default function CampaignsPage() {
   const { user } = useAuth()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -25,38 +26,69 @@ export default function CampaignsPage() {
   const [budget, setBudget] = useState('')
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
+  const [respondingId, setRespondingId] = useState<string | null>(null)
+  const [respondError, setRespondError] = useState('')
 
   useEffect(() => {
     load()
   }, [])
 
   async function load() {
-    const { data } = await supabase
+    setLoading(true)
+    setLoadError('')
+    const { data, error: fetchError } = await supabase
       .from('campaign_requests')
       .select('id, title, description, category, budget, created_at, profiles:business_id ( full_name )')
       .eq('status', 'open')
       .order('created_at', { ascending: false })
-    if (data) setCampaigns(data as unknown as Campaign[])
+      .limit(50)
+
+    if (fetchError) {
+      setLoadError('Campaigns load nahi ho payi: ' + fetchError.message)
+      setCampaigns([])
+    } else {
+      setCampaigns((data as unknown as Campaign[]) || [])
+    }
     setLoading(false)
+  }
+
+  function validateBudget(raw: string): number | null | 'invalid' {
+    if (!raw.trim()) return null // budget optional
+    const n = Number(raw)
+    if (!Number.isFinite(n) || n < 0) return 'invalid'
+    return n
   }
 
   async function handlePost() {
     setError('')
-    if (!title.trim()) return
+    if (!title.trim()) {
+      setError('Title zaroori hai.')
+      return
+    }
+
+    const parsedBudget = validateBudget(budget)
+    if (parsedBudget === 'invalid') {
+      setError('Budget ek valid, non-negative number hona chahiye.')
+      return
+    }
+
     setPosting(true)
     const { error: rpcError } = await supabase.rpc('post_campaign_request', {
-      p_title: title,
-      p_description: description,
-      p_category: category || null,
-      p_budget: budget ? Number(budget) : null,
+      p_title: title.trim(),
+      p_description: description.trim() || null,
+      p_category: category.trim() || null,
+      p_budget: parsedBudget,
     })
     setPosting(false)
+
     if (rpcError) {
       setError(rpcError.message)
       return
     }
+
     setTitle('')
     setDescription('')
+    setCategory('')
     setBudget('')
     setShowForm(false)
     load()
@@ -64,8 +96,20 @@ export default function CampaignsPage() {
 
   async function respond(campaignId: string) {
     const message = prompt('Business ko kya message bhejna hai?')
-    if (!message) return
-    await supabase.rpc('respond_to_campaign', { p_campaign_id: campaignId, p_message: message })
+    if (!message || !message.trim()) return
+
+    setRespondError('')
+    setRespondingId(campaignId)
+    const { error: rpcError } = await supabase.rpc('respond_to_campaign', {
+      p_campaign_id: campaignId,
+      p_message: message.trim(),
+    })
+    setRespondingId(null)
+
+    if (rpcError) {
+      setRespondError('Response bhejne mein error: ' + rpcError.message)
+      return
+    }
     alert('Response bhej diya!')
   }
 
@@ -110,6 +154,7 @@ export default function CampaignsPage() {
             />
             <input
               type="number"
+              min="0"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
               placeholder="Budget ₹"
@@ -131,8 +176,12 @@ export default function CampaignsPage() {
         </div>
       )}
 
+      {respondError && <p className="text-xs text-red-600 mt-3">{respondError}</p>}
+
       <div className="mt-4 space-y-3">
         {loading && <p className="text-center text-stone-400 text-sm">Loading…</p>}
+        {loadError && <p className="text-center text-red-500 text-sm">{loadError}</p>}
+
         {campaigns.map((c) => (
           <div key={c.id} className="border border-stone-200 rounded-xl p-3">
             <p className="text-sm font-bold text-stone-900">{c.title}</p>
@@ -142,14 +191,18 @@ export default function CampaignsPage() {
                 {c.category} {c.budget ? `· ₹${c.budget}` : ''} · by {c.profiles?.full_name || 'Business'}
               </p>
               {user && (
-                <button onClick={() => respond(c.id)} className="text-xs font-semibold text-clay">
-                  Respond →
+                <button
+                  onClick={() => respond(c.id)}
+                  disabled={respondingId === c.id}
+                  className="text-xs font-semibold text-clay disabled:opacity-50"
+                >
+                  {respondingId === c.id ? 'Sending…' : 'Respond →'}
                 </button>
               )}
             </div>
           </div>
         ))}
-        {!loading && campaigns.length === 0 && (
+        {!loading && !loadError && campaigns.length === 0 && (
           <p className="text-center text-stone-400 text-sm pt-6">No open campaigns right now.</p>
         )}
       </div>
