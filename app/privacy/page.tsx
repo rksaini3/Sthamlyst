@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 export const metadata = { title: 'Privacy Policy — Sthamly' }
 
@@ -7,7 +8,11 @@ export default function PrivacyPage() {
     <div className="max-w-md mx-auto pb-24 px-5 pt-6 text-stone-700 text-sm leading-relaxed">
       <Link href="/profile" className="text-xs text-amber-700 font-semibold">← Back</Link>
       <h1 className="text-xl font-bold text-stone-900 mt-3 mb-1">Privacy Policy</h1>
-      <p className="text-xs text-stone-400 mb-6">Last updated: August 2026</p>
+      <p className="text-xs text-stone-400 mb-1">Last updated: August 2026</p>
+      <p className="text-xs text-stone-400 mb-6">
+        Sthamly is currently in an early pilot phase. This policy will be updated as the
+        Platform grows.
+      </p>
 
       <Section title="1. What We Collect">
         <ul className="list-disc pl-5 space-y-1">
@@ -98,19 +103,19 @@ export default function PrivacyPage() {
         <p className="mt-2 font-semibold text-stone-800">
           Grievance Officer, Sthamly<br />
           Gonda, Uttar Pradesh, India<br />
-          Email: <span className="text-amber-700">[add your contact email here]</span>
+          Email: <span className="text-amber-700">privacy@sthamly.com</span>
         </p>
         <p className="mt-2 text-xs text-stone-500">
-          As an early-stage platform, Sthamly currently qualifies for the DPDP Act&apos;s Section
-          17 relaxations available to startups (e.g. simplified compliance obligations). We will
-          appoint a formal Data Protection Officer if and when required by law as the Platform
-          grows.
+          As an early-stage platform, Sthamly currently relies on the DPDP Act&apos;s relaxations
+          available to startups (e.g. simplified compliance obligations). We will appoint a
+          formal Data Protection Officer if and when required by law as the Platform grows.
         </p>
       </Section>
 
       <Section title="10. Changes to This Policy">
         We may update this Privacy Policy from time to time. We will indicate the &quot;Last
-        updated&quot; date at the top of this page whenever changes are made.
+        updated&quot; date at the top of this page whenever changes are made, and where changes
+        are significant, we will let users know inside the app.
       </Section>
 
       <p className="text-xs text-stone-400 mt-8">
@@ -121,7 +126,7 @@ export default function PrivacyPage() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mb-5">
       <h2 className="text-sm font-bold text-stone-900 mb-1.5">{title}</h2>
