@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin } from 'lucide-react'
+import { MapPin, BadgeCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
-import { VerifiedBadge } from '@/components/VerifiedBadge'
 
 type NearbyResult = {
   id: string
@@ -17,12 +16,15 @@ type NearbyResult = {
   distance_km: number
 }
 
-// Rounding to 2 decimal places ≈ 1.1km of fuzz at the equator.
-// This must match whatever the Privacy Policy promises ("approximate location").
-// Do this BEFORE anything ever leaves the client — never send pos.coords raw.
-function fuzzCoord(value: number, decimals = 2) {
-  const factor = 10 ** decimals
-  return Math.round(value * factor) / factor
+// Rounding to 2 decimal places gives ~1.1km of "fuzz" on latitude and
+// a similar order on longitude — this is what actually makes the
+// location "approximate" rather than exact GPS. We round ONCE, right
+// where the raw coordinate first enters the app, and use that same
+// rounded value everywhere downstream (storage AND search) — so
+// there's never a second, more-precise copy of the user's real
+// position sitting in the browser or sent to the server.
+function fuzzCoordinate(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
 export default function DiscoverPage() {
@@ -34,10 +36,12 @@ export default function DiscoverPage() {
   const [locationSet, setLocationSet] = useState(false)
   const [error, setError] = useState('')
 
-  // Cache the approximate coords we already have so we don't re-hit
-  // auth + profiles on every filter change.
-  const [savedLat, setSavedLat] = useState<number | null>(null)
-  const [savedLng, setSavedLng] = useState<number | null>(null)
+  // Cached after the first successful geolocation fetch, so changing
+  // the radius or category filter re-runs the search instantly using
+  // this — instead of re-fetching the profile row from the database
+  // every single time just to read back a value we already have.
+  const [myLat, setMyLat] = useState<number | null>(null)
+  const [myLng, setMyLng] = useState<number | null>(null)
 
   async function shareLocationAndSearch() {
     setError('')
@@ -53,23 +57,18 @@ export default function DiscoverPage() {
     setLoading(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        // Fuzz immediately — exact GPS never gets held in state or sent anywhere.
-        const lat = fuzzCoord(pos.coords.latitude)
-        const lng = fuzzCoord(pos.coords.longitude)
+        const lat = fuzzCoordinate(pos.coords.latitude)
+        const lng = fuzzCoordinate(pos.coords.longitude)
 
-        const { error: updateError } = await supabase.rpc('update_my_location', {
-          p_lat: lat,
-          p_lng: lng,
-        })
-
+        const { error: updateError } = await supabase.rpc('update_my_location', { p_lat: lat, p_lng: lng })
         if (updateError) {
-          setError('Location save nahi ho payi. Dobara try karo.')
+          setError('Location save nahi ho payi: ' + updateError.message)
           setLoading(false)
           return
         }
 
-        setSavedLat(lat)
-        setSavedLng(lng)
+        setMyLat(lat)
+        setMyLng(lng)
         setLocationSet(true)
         await runSearch(lat, lng)
       },
@@ -83,50 +82,39 @@ export default function DiscoverPage() {
   async function runSearch(lat?: number, lng?: number) {
     setError('')
 
-    // Prefer whatever we already have in state — avoids an extra
-    // auth + profiles round trip on every radius/category change.
-    let useLat = lat ?? savedLat
-    let useLng = lng ?? savedLng
+    const searchLat = lat ?? myLat
+    const searchLng = lng ?? myLng
 
-    if (!useLat || !useLng) {
-      const { data: userData, error: authError } = await supabase.auth.getUser()
-      if (authError || !userData?.user) {
-        setError('Session expire ho gaya, dobara sign in karo.')
-        return
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('latitude, longitude')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (profileError || !profile?.latitude || !profile?.longitude) {
-        setError('Pehle apni location share karo.')
-        return
-      }
-
-      useLat = profile.latitude
-      useLng = profile.longitude
-      setSavedLat(useLat)
-      setSavedLng(useLng)
+    if (searchLat == null || searchLng == null) {
+      setError('Pehle apni location share karo.')
+      return
     }
 
     setLoading(true)
     const { data, error: rpcError } = await supabase.rpc('discover_nearby', {
-      p_lat: useLat,
-      p_lng: useLng,
+      p_lat: searchLat,
+      p_lng: searchLng,
       p_radius_km: radius,
       p_category: category || null,
     })
 
     if (rpcError) {
-      setError('Nearby log load nahi ho paaye. Dobara try karo.')
+      setError('Search nahi ho paya: ' + rpcError.message)
       setResults([])
-    } else if (data) {
-      setResults(data as NearbyResult[])
+    } else {
+      setResults((data as NearbyResult[]) || [])
     }
     setLoading(false)
+  }
+
+  function handleRadiusChange(r: number) {
+    setRadius(r)
+    runSearch()
+  }
+
+  function handleCategoryChange(c: string) {
+    setCategory(c)
+    runSearch()
   }
 
   return (
@@ -150,7 +138,7 @@ export default function DiscoverPage() {
             {[5, 10, 20].map((r) => (
               <button
                 key={r}
-                onClick={() => { setRadius(r); runSearch() }}
+                onClick={() => handleRadiusChange(r)}
                 className={`flex-1 py-2 rounded-xl text-sm font-semibold ${
                   radius === r ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'
                 }`}
@@ -161,7 +149,7 @@ export default function DiscoverPage() {
           </div>
           <select
             value={category}
-            onChange={(e) => { setCategory(e.target.value); runSearch() }}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm"
           >
             <option value="">All categories</option>
@@ -179,13 +167,13 @@ export default function DiscoverPage() {
       <div className="mt-4 space-y-2">
         {results.map((r) => (
           <div key={r.id} className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3">
-            <div className="w-10 h-10 rounded-full bg-clay/10 flex items-center justify-center text-sm font-bold text-clay">
+            <div className="w-10 h-10 rounded-full bg-indigobrand-light flex items-center justify-center text-sm font-bold text-indigobrand">
               {r.full_name?.[0]?.toUpperCase() || '?'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-stone-800 flex items-center gap-1">
                 {r.full_name || 'Sthamly User'}
-                {r.seller_verified && <VerifiedBadge />}
+                {r.seller_verified && <BadgeCheck size={14} className="text-mehendi fill-mehendi/20 flex-shrink-0" />}
               </p>
               <p className="text-[11px] text-stone-500">
                 {r.city} · {r.distance_km} km away
@@ -194,7 +182,7 @@ export default function DiscoverPage() {
             </div>
           </div>
         ))}
-        {locationSet && !loading && results.length === 0 && (
+        {locationSet && !loading && !error && results.length === 0 && (
           <p className="text-center text-stone-400 text-sm pt-6">
             {radius}km ke andar koi nahi mila. Radius badha ke try karo.
           </p>
