@@ -15,7 +15,12 @@ export default function Home() {
   const [totalSaved, setTotalSaved] = useState<number | null>(null)
 
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading || !user) {
+      setTotalSaved(null) // clear stale savings when logged out / switching accounts
+      return
+    }
+
+    let cancelled = false
 
     async function loadSavings() {
       const { data, error } = await supabase
@@ -23,6 +28,7 @@ export default function Home() {
         .select('total_saved_rupees')
         .eq('id', user!.id)
         .single()
+      if (cancelled) return // component unmounted or user changed before this resolved
       if (error) {
         console.error('savings fetch failed:', error)
         return
@@ -40,6 +46,10 @@ export default function Home() {
     // on `user` here would re-fire this effect (and re-call the RPC) far
     // more often than intended.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true
+    }
   }, [authLoading, user?.id])
 
   return (
