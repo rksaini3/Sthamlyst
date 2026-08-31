@@ -92,7 +92,10 @@ export default function PrivacyPage() {
 
       <Section title="8. Cookies & Similar Technologies">
         We use essential cookies/local storage required to keep you signed in and for the app to
-        function correctly. We do not currently use third-party advertising trackers.
+        function correctly. With your consent (via the on-screen banner), we also use{' '}
+        <strong>Google Analytics</strong> to understand anonymised app usage patterns and improve
+        the Platform. You can decline this at any time from the consent banner shown on your
+        first visit. We do not use third-party advertising trackers.
       </Section>
 
       <Section title="9. Grievance Officer / Contact">
