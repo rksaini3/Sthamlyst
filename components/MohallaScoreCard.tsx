@@ -12,36 +12,48 @@ export default function MohallaScoreCard() {
 
   useEffect(() => {
     if (!user) return
+
     async function load() {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('mohalla')
         .eq('id', user!.id)
         .single()
 
+      if (profileError) {
+        console.error('mohalla fetch failed:', profileError)
+        return
+      }
       if (!profile?.mohalla) return
       setMohalla(profile.mohalla)
 
-      const weekStart = getMonday(new Date()).toISOString().slice(0, 10)
-      const { data: score } = await supabase
+      const weekStart = getMondayDateString(new Date())
+      const { data: score, error: scoreError } = await supabase
         .from('mohalla_scores')
         .select('total_coins, bonus_unlocked')
         .eq('mohalla', profile.mohalla)
         .eq('week_start', weekStart)
         .single()
 
+      if (scoreError) {
+        console.error('mohalla score fetch failed:', scoreError)
+        return
+      }
       if (score) {
         setTotalPoints(score.total_coins)
         setBonusUnlocked(score.bonus_unlocked)
       }
     }
+
     load()
-  }, [user])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   if (!mohalla) return null
 
   const target = 10000
   const progress = Math.min((totalPoints / target) * 100, 100)
+  const pointsRemaining = Math.max(target - totalPoints, 0)
 
   return (
     <div className="mx-4 mt-3 bg-white dark:bg-stone-900 border border-turmeric/30 rounded-2xl p-3">
@@ -55,17 +67,23 @@ export default function MohallaScoreCard() {
       <p className="text-[10px] text-stone-400 mt-1">
         {bonusUnlocked
           ? '🎉 Is hafte ka bonus unlock ho gaya — sabko mila!'
-          : `${target - totalPoints} activity points aur — poore mohalle ke liye ek extra local bonus unlock hoga`}
+          : `${pointsRemaining} activity points aur — poore mohalle ke liye ek extra local bonus unlock hoga`}
       </p>
     </div>
   )
 }
 
-function getMonday(d: Date) {
+// Builds the Monday date as a plain Y-M-D string using local date parts —
+// deliberately avoids toISOString(), which converts to UTC and would
+// shift the date back by one day for any timezone ahead of UTC
+// (e.g. IST, UTC+5:30), making local midnight Monday resolve to Sunday.
+function getMondayDateString(d: Date) {
   const date = new Date(d)
   const day = date.getDay()
   const diff = date.getDate() - day + (day === 0 ? -6 : 1)
   date.setDate(diff)
-  date.setHours(0, 0, 0, 0)
-  return date
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
