@@ -134,7 +134,7 @@ export default function CreatorIdentitySetup({
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              placeholder="Gonda mein 15 saal se clay diyas banati hoon"
+              placeholder="15 saal se clay diyas banati hoon"
               rows={2}
               className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2 text-sm mt-1"
             />
