@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import type { SyntheticEvent } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import StoryViewer from '@/components/StoryViewer'
 
 type Story = {
   id: string
@@ -27,16 +27,17 @@ const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000
 export default function StoriesRow() {
   const { user } = useAuth()
   const [groups, setGroups] = useState<StoryGroup[]>([])
-  const [viewingGroup, setViewingGroup] = useState<StoryGroup | null>(null)
+  // Index into `orderedGroups` (below) of the group currently being
+  // viewed — null means the viewer is closed.
+  const [viewerStartIndex, setViewerStartIndex] = useState<number | null>(null)
 
   useEffect(() => {
     load()
   }, [])
 
   async function load() {
-    // Fix: only fetch stories from the last 24 hours — previously this
-    // pulled every story ever posted, so nothing ever "expired" like a
-    // real Stories feature is expected to.
+    // Only fetch stories from the last 24 hours — a real Stories feature
+    // is expected to expire, not accumulate forever.
     const since = new Date(Date.now() - STORY_LIFETIME_MS).toISOString()
 
     const { data, error } = await supabase
@@ -77,6 +78,23 @@ export default function StoriesRow() {
   const myGroup = groups.find((g) => g.user_id === user?.id)
   const otherGroups = groups.filter((g) => g.user_id !== user?.id)
 
+  // Single ordered list (mine first, then everyone else's) — this is
+  // what gets handed to the shared StoryViewer, so that once you finish
+  // your own stories (or anyone's), it can keep auto-advancing into the
+  // next person's stories instead of stopping after just one group.
+  const orderedGroups = [...(myGroup ? [myGroup] : []), ...otherGroups]
+
+  // Map our local shape into the shape StoryViewer expects.
+  const viewerGroups = orderedGroups.map((g) => ({
+    user_id: g.user_id,
+    user: { full_name: g.full_name, avatar_url: g.avatar_url },
+    items: g.stories.map((s) => ({
+      media_type: s.media_type,
+      media_url: s.media_url,
+      caption: s.caption,
+    })),
+  }))
+
   return (
     <div className="flex gap-4 overflow-x-auto px-4 py-3 border-b border-stone-100 dark:border-stone-800 no-scrollbar">
       {/* Add Story — always first (leftmost) */}
@@ -93,7 +111,7 @@ export default function StoriesRow() {
       {/* Your Story — only shown if a story already exists, tap to VIEW it */}
       {myGroup && (
         <button
-          onClick={() => setViewingGroup(myGroup)}
+          onClick={() => setViewerStartIndex(0)}
           className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
@@ -111,10 +129,10 @@ export default function StoriesRow() {
       )}
 
       {/* Other users' stories */}
-      {otherGroups.map((g) => (
+      {otherGroups.map((g, i) => (
         <button
           key={g.user_id}
-          onClick={() => setViewingGroup(g)}
+          onClick={() => setViewerStartIndex((myGroup ? 1 : 0) + i)}
           className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-pink-500 p-[2.5px]">
@@ -133,105 +151,12 @@ export default function StoriesRow() {
         </button>
       ))}
 
-      {viewingGroup && (
-        <StoryViewer group={viewingGroup} onClose={() => { setViewingGroup(null); load() }} />
-      )}
-    </div>
-  )
-}
-
-function StoryViewer({ group, onClose }: { group: StoryGroup; onClose: () => void }) {
-  const [index, setIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const story = group.stories[index]
-  const DURATION = 5000
-
-  useEffect(() => {
-    if (!story) return
-    setProgress(0)
-
-    if (story.media_type === 'image') {
-      const start = Date.now()
-      timerRef.current = setInterval(() => {
-        const pct = Math.min(((Date.now() - start) / DURATION) * 100, 100)
-        setProgress(pct)
-        if (pct >= 100) next()
-      }, 50)
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, story])
-
-  function next() {
-    if (index < group.stories.length - 1) {
-      setIndex(index + 1)
-    } else {
-      onClose()
-    }
-  }
-
-  function prev() {
-    if (index > 0) setIndex(index - 1)
-  }
-
-  function handleVideoProgress(e: SyntheticEvent<HTMLVideoElement>) {
-    const v = e.currentTarget
-    if (v.duration) setProgress((v.currentTime / v.duration) * 100)
-  }
-
-  if (!story) return null
-
-  return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <div className="flex gap-1 px-3 pt-3">
-        {group.stories.map((_, i) => (
-          <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-white"
-              style={{ width: i < index ? '100%' : i === index ? `${progress}%` : '0%' }}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="w-7 h-7 rounded-full overflow-hidden bg-stone-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-          {group.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={group.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            group.full_name?.[0]?.toUpperCase() || '?'
-          )}
-        </div>
-        <span className="text-white text-sm font-semibold flex-1">{group.full_name || 'User'}</span>
-        <button onClick={onClose} className="text-white text-2xl leading-none px-2" aria-label="Close">×</button>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center relative">
-        <button onClick={prev} className="absolute left-0 top-0 bottom-0 w-1/3 z-10" aria-label="Previous" />
-        <button onClick={next} className="absolute right-0 top-0 bottom-0 w-1/3 z-10" aria-label="Next" />
-
-        {story.media_type === 'image' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={story.media_url} alt="" className="max-h-full max-w-full object-contain" />
-        ) : (
-          <video
-            src={story.media_url}
-            autoPlay
-            playsInline
-            onTimeUpdate={handleVideoProgress}
-            onEnded={next}
-            className="max-h-full max-w-full object-contain"
-          />
-        )}
-      </div>
-
-      {story.caption && (
-        <p className="text-white text-sm text-center px-6 pb-6">{story.caption}</p>
+      {viewerStartIndex !== null && (
+        <StoryViewer
+          groups={viewerGroups}
+          startIndex={viewerStartIndex}
+          onClose={() => { setViewerStartIndex(null); load() }}
+        />
       )}
     </div>
   )
