@@ -221,6 +221,13 @@ function LessonCard({
   const [showOptions, setShowOptions] = useState(false)
   const [videoError, setVideoError] = useState(false)
 
+  // Fix: log a profile view once per card mount so Dashboard "Views"
+  // insight has real data to count (previously nothing logged views).
+  useEffect(() => {
+    supabase.rpc('log_lesson_view', { p_lesson_id: lesson.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson.id])
+
   async function handleDelete() {
     if (!confirm('Ye reel delete kar dein?')) return
     await supabase.rpc('delete_lesson', { p_lesson_id: lesson.id })
@@ -228,6 +235,8 @@ function LessonCard({
   }
 
   function handleWhatsAppShare() {
+    // Fix: log the share so Dashboard "Content you shared" insight works.
+    supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'whatsapp' })
     const url = `${window.location.origin}/lesson/${lesson.id}`
     const text = encodeURIComponent(`${lesson.title} — Sthamly pe dekho: ${url}`)
     window.open(`https://wa.me/?text=${text}`, '_blank')
@@ -237,8 +246,10 @@ function LessonCard({
     const url = `${window.location.origin}/lesson/${lesson.id}`
     if (navigator.share) {
       await navigator.share({ title: lesson.title, url })
+      supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'native_share' })
     } else {
       await navigator.clipboard.writeText(url)
+      supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'copy_link' })
       setToast('Link copy ho gaya')
       setTimeout(() => setToast(null), 1500)
     }
@@ -460,6 +471,10 @@ function CommentSheet({
   const [recording, setRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  // Fix: keep a handle on the mic stream so we can release the tracks
+  // after recording stops — otherwise the mic stays "active" in the
+  // browser until the whole page reloads.
+  const streamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
     load()
@@ -495,6 +510,7 @@ function CommentSheet({
     if (!user) return
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
       chunksRef.current = []
       const mr = new MediaRecorder(stream)
       mr.ondataavailable = (e) => chunksRef.current.push(e.data)
@@ -513,6 +529,10 @@ function CommentSheet({
   }
 
   async function handleRecordingStop() {
+    // Release the mic tracks immediately once recording stops.
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+
     if (!user) return
     setPosting(true)
     const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
