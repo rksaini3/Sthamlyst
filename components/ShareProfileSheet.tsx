@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { X, Share2, Link as LinkIcon, Download } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
 
@@ -25,7 +26,11 @@ export default function ShareProfileSheet({
 
   async function handleShare() {
     if (navigator.share) {
-      await navigator.share({ title: `@${handle} on Sthamly`, url: profileUrl })
+      // Fix: navigator.share() rejects with an AbortError when the user
+      // simply cancels the native share sheet — that's not a real error,
+      // so swallow it instead of letting it surface as an unhandled
+      // promise rejection.
+      await navigator.share({ title: `@${handle} on Sthamly`, url: profileUrl }).catch(() => {})
     } else {
       await navigator.clipboard.writeText(profileUrl)
       alert('Link copy ho gaya!')
@@ -49,12 +54,15 @@ export default function ShareProfileSheet({
   return (
     <div className={`fixed inset-0 z-50 flex flex-col ${bg}`}>
       <div className="flex items-center justify-between px-4 pt-4">
-        <button onClick={onClose} className={textColor}><X size={24} /></button>
+        <button onClick={onClose} className={textColor} aria-label="Close">
+          <X size={24} />
+        </button>
         <div className="flex bg-black/20 rounded-full p-1">
           {(['color', 'light', 'dark'] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
+              aria-label={`${m} background`}
               className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
                 mode === m ? 'bg-white text-stone-900' : 'text-white/70'
               }`}
@@ -86,7 +94,7 @@ export default function ShareProfileSheet({
   )
 }
 
-function ShareAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function ShareAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-2 text-stone-700">
       <div className="w-14 h-14 rounded-full border border-stone-200 flex items-center justify-center">{icon}</div>
