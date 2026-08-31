@@ -142,7 +142,7 @@ export default function BazaarPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-heading font-semibold text-clay">Local Bazaar</h1>
-            <p className="text-xs text-clay/70 mt-0.5">Handmade goods & services, direct from Gonda makers</p>
+            <p className="text-xs text-clay/70 mt-0.5">Handmade goods & services, direct from local makers</p>
           </div>
           <div className="flex items-center gap-2">
             {pointsBalance !== null && (
