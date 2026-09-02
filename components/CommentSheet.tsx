@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/AuthProvider'
 type Comment = {
   id: string
   parent_comment_id: string | null
+  user_id: string
   body: string | null
   audio_url: string | null
   created_at: string
@@ -40,9 +41,18 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(months / 12)}y`
 }
 
-export default function CommentSheet({ lessonId, onClose }: { lessonId: string; onClose: () => void }) {
+export default function CommentSheet({
+  lessonId,
+  onClose,
+  onCommentAdded,
+}: {
+  lessonId: string
+  onClose: () => void
+  onCommentAdded?: () => void
+}) {
   const { user } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
+  const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [recording, setRecording] = useState(false)
   const [posting, setPosting] = useState(false)
@@ -51,6 +61,7 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [reactingId, setReactingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const mediaRecorder = useRef<MediaRecorder | null>(null)
   const mediaStream = useRef<MediaStream | null>(null)
@@ -58,8 +69,12 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
 
   useEffect(() => {
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId])
 
+  // Release the mic if the sheet closes (backdrop tap or parent unmounting
+  // it) while a recording is still in progress — otherwise the browser's
+  // mic indicator stays on for nothing.
   useEffect(() => {
     return () => {
       mediaRecorder.current?.stop()
@@ -68,7 +83,9 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
   }, [])
 
   async function load() {
+    setLoading(true)
     const { data, error } = await supabase.rpc('get_comments_for_lesson', { p_lesson_id: lessonId })
+    setLoading(false)
     if (error) {
       console.error('load comments failed:', error)
       return
@@ -110,6 +127,7 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
       return
     }
     setText('')
+    onCommentAdded?.()
     load()
   }
 
@@ -129,6 +147,19 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
     setReplyText('')
     setReplyingTo(null)
     setExpandedReplies((prev) => new Set(prev).add(parentId))
+    onCommentAdded?.()
+    load()
+  }
+
+  async function deleteComment(id: string) {
+    if (deletingId) return
+    setDeletingId(id)
+    const { error } = await supabase.rpc('delete_comment', { p_comment_id: id })
+    setDeletingId(null)
+    if (error) {
+      setMicError('Comment delete nahi hua, dobara try karo.')
+      return
+    }
     load()
   }
 
@@ -168,7 +199,7 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
       const { data: urlData } = supabase.storage.from('comment-audio').getPublicUrl(filePath)
       const { error } = await supabase.rpc('add_comment', { p_lesson_id: lessonId, p_audio_url: urlData.publicUrl })
       if (error) setMicError('Voice comment post nahi ho paya, dobara try karo.')
-      else load()
+      else { onCommentAdded?.(); load() }
     } else {
       setMicError('Voice comment upload nahi ho paya, dobara try karo.')
     }
@@ -200,6 +231,15 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
             Reply
           </button>
         )}
+        {user && c.user_id === user.id && (
+          <button
+            onClick={() => deleteComment(c.id)}
+            disabled={deletingId === c.id}
+            className="text-[11px] text-stone-400 disabled:opacity-40"
+          >
+            {deletingId === c.id ? 'Deleting…' : 'Delete'}
+          </button>
+        )}
       </div>
     )
   }
@@ -207,10 +247,10 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
       <div
-        className="w-full bg-white dark:bg-stone-900 rounded-t-2xl max-h-[75vh] flex flex-col"
+        className="w-full max-w-md mx-auto bg-white dark:bg-stone-900 rounded-t-2xl max-h-[75vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 dark:border-stone-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 dark:border-stone-700 flex-shrink-0">
           <span className="font-bold text-sm text-stone-900 dark:text-stone-100">
             Comments {topLevel.length > 0 && <span className="text-stone-400 font-normal">· {topLevel.length}</span>}
           </span>
@@ -218,114 +258,126 @@ export default function CommentSheet({ lessonId, onClose }: { lessonId: string; 
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          {topLevel.map((c) => {
-            const name = c.full_name ?? 'Sthamly User'
-            const replies = repliesFor(c.id)
-            const expanded = expandedReplies.has(c.id)
-            return (
-              <div key={c.id}>
-                <div className="flex gap-3">
-                  <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white ${avatarColor(name)}`}>
-                    {name[0]?.toUpperCase() ?? '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs">
-                      <span className="font-semibold text-stone-800 dark:text-stone-100">{name}</span>{' '}
-                      <span className="text-stone-400">· {timeAgo(c.created_at)}</span>
-                    </p>
-                    {c.body && <p className="text-sm text-stone-700 dark:text-stone-300 mt-0.5">{c.body}</p>}
-                    {c.audio_url && <audio src={c.audio_url} controls className="mt-1.5 h-8 w-full max-w-[240px]" />}
-                    <ReactionRow c={c} />
-
-                    {replyingTo === c.id && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <input
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && postReply(c.id)}
-                          placeholder={`${name} ko reply karo...`}
-                          autoFocus
-                          className="flex-1 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 rounded-full px-3 py-1.5 text-xs"
-                        />
-                        <button
-                          onClick={() => postReply(c.id)}
-                          disabled={posting || !replyText.trim()}
-                          className="text-amber-600 font-bold text-xs px-1 disabled:opacity-40 flex-shrink-0"
-                        >
-                          Send
-                        </button>
+          {loading ? (
+            <p className="text-xs text-stone-400 text-center py-6">Loading…</p>
+          ) : (
+            <>
+              {topLevel.map((c) => {
+                const name = c.full_name ?? 'Sthamly User'
+                const replies = repliesFor(c.id)
+                const expanded = expandedReplies.has(c.id)
+                return (
+                  <div key={c.id}>
+                    <div className="flex gap-3">
+                      <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white ${avatarColor(name)}`}>
+                        {name[0]?.toUpperCase() ?? '?'}
                       </div>
-                    )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs">
+                          <span className="font-semibold text-stone-800 dark:text-stone-100">{name}</span>{' '}
+                          <span className="text-stone-400">· {timeAgo(c.created_at)}</span>
+                        </p>
+                        {c.body && <p className="text-sm text-stone-700 dark:text-stone-300 mt-0.5">{c.body}</p>}
+                        {c.audio_url && <audio src={c.audio_url} controls className="mt-1.5 h-8 w-full max-w-[240px]" />}
+                        <ReactionRow c={c} />
 
-                    {replies.length > 0 && (
-                      <button
-                        onClick={() => toggleReplies(c.id)}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-clay mt-2"
-                      >
-                        <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                        {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
-                      </button>
-                    )}
+                        {replyingTo === c.id && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <input
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && postReply(c.id)}
+                              placeholder={`${name} ko reply karo...`}
+                              autoFocus
+                              className="flex-1 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 rounded-full px-3 py-1.5 text-xs"
+                            />
+                            <button
+                              onClick={() => postReply(c.id)}
+                              disabled={posting || !replyText.trim()}
+                              className="text-amber-600 font-bold text-xs px-1 disabled:opacity-40 flex-shrink-0"
+                            >
+                              Send
+                            </button>
+                          </div>
+                        )}
 
-                    {expanded && (
-                      <div className="mt-3 space-y-3 border-l-2 border-stone-100 dark:border-stone-700 pl-3">
-                        {replies.map((r) => {
-                          const rName = r.full_name ?? 'Sthamly User'
-                          return (
-                            <div key={r.id} className="flex gap-2.5">
-                              <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white ${avatarColor(rName)}`}>
-                                {rName[0]?.toUpperCase() ?? '?'}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[11px]">
-                                  <span className="font-semibold text-stone-800 dark:text-stone-100">{rName}</span>{' '}
-                                  <span className="text-stone-400">· {timeAgo(r.created_at)}</span>
-                                </p>
-                                {r.body && <p className="text-xs text-stone-700 dark:text-stone-300 mt-0.5">{r.body}</p>}
-                                {r.audio_url && <audio src={r.audio_url} controls className="mt-1 h-7 w-full max-w-[200px]" />}
-                                <ReactionRow c={r} />
-                              </div>
-                            </div>
-                          )
-                        })}
+                        {replies.length > 0 && (
+                          <button
+                            onClick={() => toggleReplies(c.id)}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-clay mt-2"
+                          >
+                            <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+                          </button>
+                        )}
+
+                        {expanded && (
+                          <div className="mt-3 space-y-3 border-l-2 border-stone-100 dark:border-stone-700 pl-3">
+                            {replies.map((r) => {
+                              const rName = r.full_name ?? 'Sthamly User'
+                              return (
+                                <div key={r.id} className="flex gap-2.5">
+                                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white ${avatarColor(rName)}`}>
+                                    {rName[0]?.toUpperCase() ?? '?'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px]">
+                                      <span className="font-semibold text-stone-800 dark:text-stone-100">{rName}</span>{' '}
+                                      <span className="text-stone-400">· {timeAgo(r.created_at)}</span>
+                                    </p>
+                                    {r.body && <p className="text-xs text-stone-700 dark:text-stone-300 mt-0.5">{r.body}</p>}
+                                    {r.audio_url && <audio src={r.audio_url} controls className="mt-1 h-7 w-full max-w-[200px]" />}
+                                    <ReactionRow c={r} />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            )
-          })}
-          {topLevel.length === 0 && (
-            <p className="text-xs text-stone-400 text-center py-6">Sabse pehle comment karo</p>
+                )
+              })}
+              {topLevel.length === 0 && (
+                <p className="text-xs text-stone-400 text-center py-6">No comments yet — be the first!</p>
+              )}
+            </>
           )}
         </div>
 
         {micError && <p className="text-[11px] text-red-500 px-4 pb-1">{micError}</p>}
 
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-stone-100 dark:border-stone-700">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && postText()}
-            placeholder="Comment likho..."
-            className="flex-1 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 rounded-full px-3 py-2 text-sm"
-          />
-          <button
-            onClick={recording ? stopRecording : startRecording}
-            disabled={posting}
-            className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 ${
-              recording ? 'bg-red-600 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
-            }`}
-          >
-            🎙️
-          </button>
-          <button
-            onClick={postText}
-            disabled={posting || !text.trim()}
-            className="text-amber-600 font-bold text-sm px-2 disabled:opacity-40 flex-shrink-0"
-          >
-            Send
-          </button>
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-stone-100 dark:border-stone-700 flex-shrink-0">
+          {user ? (
+            <>
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && postText()}
+                placeholder="Comment likho..."
+                className="flex-1 border border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 rounded-full px-3 py-2 text-sm"
+              />
+              <button
+                onClick={recording ? stopRecording : startRecording}
+                disabled={posting}
+                className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 ${
+                  recording ? 'bg-red-600 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                }`}
+              >
+                🎙️
+              </button>
+              <button
+                onClick={postText}
+                disabled={posting || !text.trim()}
+                className="text-amber-600 font-bold text-sm px-2 disabled:opacity-40 flex-shrink-0"
+              >
+                Post
+              </button>
+            </>
+          ) : (
+            <span className="text-sm text-stone-400">Sign in to comment</span>
+          )}
         </div>
       </div>
     </div>
