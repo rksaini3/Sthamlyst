@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { MapPin, BadgeCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -13,16 +13,9 @@ type NearbyResult = {
   is_seller: boolean
   is_creator: boolean
   seller_verified: boolean
-  distance_km: number
+  distance_km: number | null
 }
 
-// Rounding to 2 decimal places gives ~1.1km of "fuzz" on latitude and
-// a similar order on longitude — this is what actually makes the
-// location "approximate" rather than exact GPS. We round ONCE, right
-// where the raw coordinate first enters the app, and use that same
-// rounded value everywhere downstream (storage AND search) — so
-// there's never a second, more-precise copy of the user's real
-// position sitting in the browser or sent to the server.
 function fuzzCoordinate(value: number): number {
   return Math.round(value * 100) / 100
 }
@@ -36,12 +29,13 @@ export default function DiscoverPage() {
   const [locationSet, setLocationSet] = useState(false)
   const [error, setError] = useState('')
 
-  // Cached after the first successful geolocation fetch, so changing
-  // the radius or category filter re-runs the search instantly using
-  // this — instead of re-fetching the profile row from the database
-  // every single time just to read back a value we already have.
   const [myLat, setMyLat] = useState<number | null>(null)
   const [myLng, setMyLng] = useState<number | null>(null)
+
+  // Tracks which search request is the most recent one — if an older,
+  // slower request resolves after a newer one, its result is thrown
+  // away instead of overwriting the screen with stale data.
+  const searchIdRef = useRef(0)
 
   async function shareLocationAndSearch() {
     setError('')
@@ -73,30 +67,51 @@ export default function DiscoverPage() {
         await runSearch(lat, lng)
       },
       () => {
-        setError('Location access denied — Discovery ke liye location zaroori hai.')
+        setError('Location access denied ya nahi mil paayi — Discovery ke liye location zaroori hai.')
         setLoading(false)
+      },
+      {
+        timeout: 10000, // 10 seconds — don't hang forever on weak GPS
+        maximumAge: 60000, // reuse a location up to 1 min old, avoids a fresh fix every time
       }
     )
   }
 
-  async function runSearch(lat?: number, lng?: number) {
+  // radiusOverride / categoryOverride let a caller pass the value it JUST
+  // set via setState, instead of relying on `radius` / `category` from the
+  // closure — setState is async, so reading the state variable right after
+  // calling setRadius/setCategory would still see the OLD value.
+  async function runSearch(
+    lat?: number,
+    lng?: number,
+    radiusOverride?: number,
+    categoryOverride?: string
+  ) {
     setError('')
 
     const searchLat = lat ?? myLat
     const searchLng = lng ?? myLng
+    const searchRadius = radiusOverride ?? radius
+    const searchCategory = categoryOverride !== undefined ? categoryOverride : category
 
     if (searchLat == null || searchLng == null) {
       setError('Pehle apni location share karo.')
       return
     }
 
+    const thisSearchId = ++searchIdRef.current
     setLoading(true)
+
     const { data, error: rpcError } = await supabase.rpc('discover_nearby', {
       p_lat: searchLat,
       p_lng: searchLng,
-      p_radius_km: radius,
-      p_category: category || null,
+      p_radius_km: searchRadius,
+      p_category: searchCategory || null,
     })
+
+    // A newer search started while this one was in flight — ignore
+    // this now-stale result entirely (don't touch results/loading).
+    if (thisSearchId !== searchIdRef.current) return
 
     if (rpcError) {
       setError('Search nahi ho paya: ' + rpcError.message)
@@ -109,12 +124,12 @@ export default function DiscoverPage() {
 
   function handleRadiusChange(r: number) {
     setRadius(r)
-    runSearch()
+    runSearch(undefined, undefined, r)
   }
 
   function handleCategoryChange(c: string) {
     setCategory(c)
-    runSearch()
+    runSearch(undefined, undefined, undefined, c)
   }
 
   return (
@@ -176,7 +191,7 @@ export default function DiscoverPage() {
                 {r.seller_verified && <BadgeCheck size={14} className="text-mehendi fill-mehendi/20 flex-shrink-0" />}
               </p>
               <p className="text-[11px] text-stone-500">
-                {r.city} · {r.distance_km} km away
+                {r.city} · {r.distance_km != null ? `${r.distance_km.toFixed(1)} km away` : 'distance unknown'}
                 {r.business_category && ` · ${r.business_category}`}
               </p>
             </div>
