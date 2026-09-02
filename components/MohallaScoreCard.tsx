@@ -14,11 +14,15 @@ export default function MohallaScoreCard() {
     if (!user) return
 
     async function load() {
+      // .maybeSingle() instead of .single() — a brand-new user (profile row
+      // not created yet) or a brand-new week (no mohalla_scores row yet)
+      // are both normal, expected states, not errors. .single() would throw
+      // for either case instead of just returning null.
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('mohalla')
         .eq('id', user!.id)
-        .single()
+        .maybeSingle()
 
       if (profileError) {
         console.error('mohalla fetch failed:', profileError)
@@ -33,16 +37,17 @@ export default function MohallaScoreCard() {
         .select('total_coins, bonus_unlocked')
         .eq('mohalla', profile.mohalla)
         .eq('week_start', weekStart)
-        .single()
+        .maybeSingle()
 
       if (scoreError) {
         console.error('mohalla score fetch failed:', scoreError)
         return
       }
-      if (score) {
-        setTotalPoints(score.total_coins)
-        setBonusUnlocked(score.bonus_unlocked)
-      }
+      // No row yet this week = mohalla hasn't earned any points yet — 0 is
+      // the correct value here, not an error. total_coins ?? 0 also guards
+      // against a null column value crashing toLocaleString() below.
+      setTotalPoints(score?.total_coins ?? 0)
+      setBonusUnlocked(score?.bonus_unlocked ?? false)
     }
 
     load()
