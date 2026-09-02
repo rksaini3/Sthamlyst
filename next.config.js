@@ -3,7 +3,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: true,   // ← TEMPORARILY true kar do (PWA poori tarah band)
+  disable: process.env.NODE_ENV === 'development', // ← CHANGE THIS
   cleanupOutdatedCaches: true,
   fallbacks: {
     document: '/offline.html',
