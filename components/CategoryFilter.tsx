@@ -17,12 +17,20 @@ export default function CategoryFilter({
 
   useEffect(() => {
     async function loadThemes() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('lessons')
         .select('craft_theme')
         .eq('is_published', true)
+        .order('craft_theme', { ascending: true })
 
+      if (error) {
+        console.error('loadThemes failed:', error)
+        return
+      }
       if (data) {
+        // Ordering the query alphabetically means the dedup below preserves
+        // that order too, so the chip row is stable across reloads instead
+        // of shuffling based on whatever order rows happened to come back in.
         const unique = Array.from(new Set(data.map((d) => d.craft_theme).filter(Boolean)))
         const visible = unique.filter((t) => !HIDDEN_THEMES.includes(t as string))
         setThemes(visible as string[])
@@ -36,7 +44,7 @@ export default function CategoryFilter({
       <button
         onClick={() => onSelect(null)}
         className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 ${
-          activeTheme === null ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'
+          activeTheme === null ? 'bg-clay text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
         }`}
       >
         ✨ All
@@ -46,7 +54,7 @@ export default function CategoryFilter({
           key={theme}
           onClick={() => onSelect(theme)}
           className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 ${
-            activeTheme === theme ? 'bg-clay text-white' : 'bg-stone-100 text-stone-600'
+            activeTheme === theme ? 'bg-clay text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
           }`}
         >
           {theme}
