@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle, Share2, MoreHorizontal, Mic, Square, X, BadgeCheck } from 'lucide-react'
+import { Heart, MessageCircle, Share2, MoreHorizontal, BadgeCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
+import CommentSheet from '@/components/CommentSheet'
 
 type QuizQuestion = { question: string; options: string[]; correct_index: number }
 
@@ -221,8 +222,6 @@ function LessonCard({
   const [showOptions, setShowOptions] = useState(false)
   const [videoError, setVideoError] = useState(false)
 
-  // Fix: log a profile view once per card mount so Dashboard "Views"
-  // insight has real data to count (previously nothing logged views).
   useEffect(() => {
     supabase.rpc('log_lesson_view', { p_lesson_id: lesson.id })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,7 +234,6 @@ function LessonCard({
   }
 
   function handleWhatsAppShare() {
-    // Fix: log the share so Dashboard "Content you shared" insight works.
     supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'whatsapp' })
     const url = `${window.location.origin}/lesson/${lesson.id}`
     const text = encodeURIComponent(`${lesson.title} — Sthamly pe dekho: ${url}`)
@@ -245,8 +243,12 @@ function LessonCard({
   async function handleShare() {
     const url = `${window.location.origin}/lesson/${lesson.id}`
     if (navigator.share) {
-      await navigator.share({ title: lesson.title, url })
-      supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'native_share' })
+      try {
+        await navigator.share({ title: lesson.title, url })
+        supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'native_share' })
+      } catch {
+        // User cancelled the native share sheet — not an error, nothing to do.
+      }
     } else {
       await navigator.clipboard.writeText(url)
       supabase.rpc('log_lesson_share', { p_lesson_id: lesson.id, p_channel: 'copy_link' })
@@ -446,181 +448,6 @@ function LessonCard({
             {toast}
           </div>
         )}
-      </div>
-    </div>
-  )
-}
-
-type Comment = {
-  id: string
-  user_id: string
-  body: string | null
-  audio_url: string | null
-  created_at: string
-  profiles: { full_name: string | null; username: string | null } | null
-}
-
-function CommentSheet({
-  lessonId, onClose, onCommentAdded,
-}: { lessonId: string; onClose: () => void; onCommentAdded: () => void }) {
-  const { user } = useAuth()
-  const [comments, setComments] = useState<Comment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [text, setText] = useState('')
-  const [posting, setPosting] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  // Fix: keep a handle on the mic stream so we can release the tracks
-  // after recording stops — otherwise the mic stays "active" in the
-  // browser until the whole page reloads.
-  const streamRef = useRef<MediaStream | null>(null)
-
-  useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonId])
-
-  async function load() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('comments')
-      .select('id, user_id, body, audio_url, created_at, profiles:user_id ( full_name, username )')
-      .eq('lesson_id', lessonId)
-      .order('created_at', { ascending: false })
-    if (!error && data) setComments(data as unknown as Comment[])
-    setLoading(false)
-  }
-
-  async function post() {
-    if (!text.trim() || !user) return
-    setPosting(true)
-    const { error } = await supabase.rpc('add_comment', { p_lesson_id: lessonId, p_body: text.trim() })
-    if (!error) {
-      setText('')
-      onCommentAdded()
-      await load()
-    } else {
-      alert('Comment post nahi ho paya: ' + error.message)
-    }
-    setPosting(false)
-  }
-
-  async function startRecording() {
-    if (!user) return
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      chunksRef.current = []
-      const mr = new MediaRecorder(stream)
-      mr.ondataavailable = (e) => chunksRef.current.push(e.data)
-      mr.onstop = handleRecordingStop
-      mediaRecorderRef.current = mr
-      mr.start()
-      setRecording(true)
-    } catch {
-      alert('Mic access nahi mil paya — browser permission check karo.')
-    }
-  }
-
-  function stopRecording() {
-    mediaRecorderRef.current?.stop()
-    setRecording(false)
-  }
-
-  async function handleRecordingStop() {
-    // Release the mic tracks immediately once recording stops.
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-
-    if (!user) return
-    setPosting(true)
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-    const filePath = `${user.id}/${Date.now()}.webm`
-    const { error: upErr } = await supabase.storage.from('comment-audio').upload(filePath, blob)
-    if (upErr) {
-      alert('Voice note upload fail: ' + upErr.message)
-      setPosting(false)
-      return
-    }
-    const { data: urlData } = supabase.storage.from('comment-audio').getPublicUrl(filePath)
-    const { error } = await supabase.rpc('add_comment', { p_lesson_id: lessonId, p_audio_url: urlData.publicUrl })
-    if (!error) {
-      onCommentAdded()
-      await load()
-    } else {
-      alert('Voice comment save nahi hua: ' + error.message)
-    }
-    setPosting(false)
-  }
-
-  async function deleteComment(id: string) {
-    setComments((prev) => prev.filter((c) => c.id !== id))
-    await supabase.rpc('delete_comment', { p_comment_id: id })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
-      <div
-        className="w-full max-w-md mx-auto bg-white rounded-t-2xl max-h-[75vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 flex-shrink-0">
-          <span className="font-bold text-sm">Comments</span>
-          <button onClick={onClose}><X size={20} className="text-stone-500" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          {loading ? (
-            <p className="text-xs text-stone-400 text-center py-6">Loading…</p>
-          ) : comments.length === 0 ? (
-            <p className="text-xs text-stone-400 text-center py-6">No comments yet — be the first!</p>
-          ) : (
-            comments.map((c) => (
-              <div key={c.id} className="flex items-start justify-between gap-2 text-sm">
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold text-stone-800">
-                    {c.profiles?.username ? `@${c.profiles.username}` : (c.profiles?.full_name || 'User')}{' '}
-                  </span>
-                  {c.body && <span className="text-stone-700">{c.body}</span>}
-                  {c.audio_url && <audio src={c.audio_url} controls className="mt-1 h-8 w-full max-w-[240px]" />}
-                </div>
-                {user && c.user_id === user.id && (
-                  <button onClick={() => deleteComment(c.id)} className="text-stone-400 flex-shrink-0 text-lg leading-none">×</button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-stone-100 flex-shrink-0">
-          {user ? (
-            <>
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && post()}
-                placeholder="Comment likho..."
-                className="flex-1 border border-stone-300 rounded-full px-3 py-2 text-sm"
-              />
-              <button
-                onClick={recording ? stopRecording : startRecording}
-                className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${recording ? 'bg-red-600 text-white' : 'bg-stone-100 text-stone-600'}`}
-              >
-                {recording ? <Square size={16} /> : <Mic size={16} />}
-              </button>
-              <button
-                onClick={post}
-                disabled={posting || !text.trim()}
-                className="text-clay font-bold text-sm px-2 disabled:opacity-40 flex-shrink-0"
-              >
-                Post
-              </button>
-            </>
-          ) : (
-            <Link href="/login" className="text-sm text-clay font-semibold">Sign in to comment</Link>
-          )}
-        </div>
       </div>
     </div>
   )
