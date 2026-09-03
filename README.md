@@ -1,4 +1,4 @@
-# Sthamly — Learn & Earn mvp
+# Sthamly — Learn & Earn 
 
 Next.js 14 + Tailwind + Supabase. Pilot: Gonda, UP. Theme: Clay Crafts & Home Decor.
 
