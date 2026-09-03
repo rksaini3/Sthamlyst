@@ -8,6 +8,7 @@ import ConnectivityToast from '@/components/ConnectivityToast'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import { AuthProvider } from '@/lib/AuthProvider'
 import { ThemeProvider } from '@/lib/ThemeProvider'
+import { PushInit } from '@/components/PushInit' // ← ADDED
 
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -25,10 +26,6 @@ export const metadata: Metadata = {
   },
 }
 
-// Locks the viewport to a fixed, predictable scale on every load —
-// including the fresh full-page reload that happens right after coming
-// back from Google Sign-In — so the page never renders zoomed in/out
-// unexpectedly.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -50,9 +47,8 @@ export default function RootLayout({
             <ConnectivityToast />
             {children}
             <BottomNav />
-            {/* Google Analytics only loads after the user accepts the
-                consent banner rendered inside this component. */}
             <AnalyticsConsent />
+            <PushInit /> {/* ← ADDED: registers push subscription once the user session is ready */}
           </AuthProvider>
         </ThemeProvider>
       </body>
