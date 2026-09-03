@@ -1,7 +1,4 @@
-// app/api/notifications/subscribe/route.ts
-// FIX: no cookie session in this app — verify the user via the Bearer
-// access-token the client sends, using an anon-key client whose requests
-// carry that token (so RLS policies see the real authenticated user).
+// app/api/notifications/unsubscribe/route.ts
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -22,7 +19,6 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = getUserSupabase(token);
-
   const {
     data: { user },
     error: userError,
@@ -32,23 +28,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const subscription = await req.json();
+  const { endpoint } = await req.json();
 
   try {
-    const { error } = await supabase.from('push_subscriptions').upsert(
-      {
-        user_id: user.id,
-        subscription_json: subscription,
-        is_active: true,
-        last_renewed: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,endpoint' } // matches the generated `endpoint` column in the SQL
-    );
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('endpoint', endpoint);
 
-    if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Subscribe error:', error);
-    return NextResponse.json({ error: 'Failed to save subscription' }, { status: 500 });
+    console.error('Unsubscribe error:', error);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
