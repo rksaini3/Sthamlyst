@@ -2,13 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ShoppingBag, PlusSquare, MessageCircle, User } from 'lucide-react'
+import { Mic, Gavel, MessageCircle, User } from 'lucide-react'
 
 const items = [
-  { href: '/', icon: Home, label: 'Home' },
-  { href: '/bazaar', icon: ShoppingBag, label: 'Bazaar' },
-  { href: '/upload', icon: PlusSquare, label: 'Upload' },
-  { href: '/chat', icon: MessageCircle, label: 'Chat' },
+  { href: '/', icon: Mic, label: 'Home' },
+  { href: '/boli', icon: Gavel, label: 'Boli' },
+  { href: '/chat', icon: MessageCircle, label: 'Chats' },
   { href: '/profile', icon: User, label: 'Profile' },
 ]
 
@@ -27,7 +26,7 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className="p-2"
+              className="p-2 flex flex-col items-center gap-0.5"
               aria-label={label}
               aria-current={active ? 'page' : undefined}
             >
@@ -36,6 +35,13 @@ export default function BottomNav() {
                 strokeWidth={active ? 2.5 : 1.8}
                 className={active ? 'text-stone-900 dark:text-stone-100' : 'text-stone-400 dark:text-stone-500'}
               />
+              <span
+                className={`text-[10px] ${
+                  active ? 'text-stone-900 dark:text-stone-100 font-medium' : 'text-stone-400 dark:text-stone-500'
+                }`}
+              >
+                {label}
+              </span>
             </Link>
           )
         })}
