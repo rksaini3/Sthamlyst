@@ -67,12 +67,12 @@ export default function VoicePledgeSheet({ onClose, onSaved }: Props) {
     try {
       const fileName = `voice-pledges/${user.id}-${Date.now()}.webm`
       const { error: uploadError } = await supabase.storage
-        .from('audio')
+        .from('comment-audio')
         .upload(fileName, audioBlob, { contentType: 'audio/webm' })
 
       if (uploadError) throw uploadError
 
-      const { data: publicUrlData } = supabase.storage.from('audio').getPublicUrl(fileName)
+      const { data: publicUrlData } = supabase.storage.from('comment-audio').getPublicUrl(fileName)
 
       const { error: insertError } = await supabase.from('voice_pledges').upsert({
         seller_id: user.id,
