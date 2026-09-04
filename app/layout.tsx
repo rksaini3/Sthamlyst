@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
+import DynamicFab from '@/components/DynamicFab'
 import GlobalHeader from '@/components/GlobalHeader'
 import ConnectivityToast from '@/components/ConnectivityToast'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
@@ -16,8 +17,8 @@ const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable:
 const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono', weight: ['400', '500'] })
 
 export const metadata: Metadata = {
-  title: 'Sthamly — Learn & Earn',
-  description: 'Learn from local makers, earn Sthamly Points, shop the local handmade bazaar.',
+  title: 'Sthamly — Boliye, Bhaav Kariye, Sauda Pakka!',
+  description: 'Voice-first hyperlocal marketplace — apne mohalle ke dukaandaron se bolkar bhaav kariye, live boli lagaiye.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -46,6 +47,7 @@ export default function RootLayout({
             <GlobalHeader />
             <ConnectivityToast />
             {children}
+            <DynamicFab />
             <BottomNav />
             <AnalyticsConsent />
             <PushInit /> {/* ← ADDED: registers push subscription once the user session is ready */}
