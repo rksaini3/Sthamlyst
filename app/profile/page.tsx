@@ -6,7 +6,7 @@ import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
 import {
   Menu, Settings, Moon, Sun, Shield, LogOut, BadgeCheck, QrCode,
-  ScanLine, IndianRupee, Coins, Mic,
+  ScanLine, IndianRupee, Coins, Mic, Trash2, Pencil, Loader2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -488,13 +488,23 @@ function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId:
               {item.subtitle && (
                 <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">{item.subtitle}</span>
               )}
+              {isOwnProfile && tab === 'listings' && (
+                <Link
+                  href={`/sell/edit/${item.id}`}
+                  aria-label="Listing edit karein"
+                  className="absolute top-1 right-7 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center"
+                >
+                  <Pencil size={11} />
+                </Link>
+              )}
               {isOwnProfile && (
                 <button
                   onClick={() => handleDelete(item.id)}
                   disabled={deletingId === item.id}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white text-[10px] flex items-center justify-center disabled:opacity-50"
+                  aria-label="Listing delete karein"
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-50"
                 >
-                  {deletingId === item.id ? '…' : '🗑️'}
+                  {deletingId === item.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
                 </button>
               )}
             </div>
