@@ -65,7 +65,7 @@ export default function VoicePledgeSheet({ onClose, onSaved }: Props) {
     setError('')
 
     try {
-      const fileName = `voice-pledges/${user.id}-${Date.now()}.webm`
+      const fileName = `${user.id}/${Date.now()}-pledge.webm`
       const { error: uploadError } = await supabase.storage
         .from('comment-audio')
         .upload(fileName, audioBlob, { contentType: 'audio/webm' })
