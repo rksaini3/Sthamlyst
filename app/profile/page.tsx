@@ -30,6 +30,7 @@ type Profile = {
   bio: string | null
   avatar_url: string | null
   is_verified: boolean
+  is_private: boolean
   pronouns: string | null
   gender: string | null
 }
@@ -97,7 +98,7 @@ export default function ProfilePage() {
 
     let { data, error } = await supabase
       .from('profiles')
-      .select('full_name, city, mohalla, sthamly_points, total_saved_rupees, is_seller, seller_verified, username, bio, avatar_url, is_verified, pronouns, gender')
+      .select('full_name, city, mohalla, sthamly_points, total_saved_rupees, is_seller, seller_verified, username, bio, avatar_url, is_verified, is_private, pronouns, gender')
       .eq('id', targetUserId)
       .single()
 
@@ -106,7 +107,7 @@ export default function ProfilePage() {
       if (ensureResult.error) setDebugError(`ensure_profile: ${ensureResult.error.message}`)
       const retry = await supabase
         .from('profiles')
-        .select('full_name, city, mohalla, sthamly_points, total_saved_rupees, is_seller, seller_verified, username, bio, avatar_url, is_verified, pronouns, gender')
+        .select('full_name, city, mohalla, sthamly_points, total_saved_rupees, is_seller, seller_verified, username, bio, avatar_url, is_verified, is_private, pronouns, gender')
         .eq('id', targetUserId)
         .single()
       data = retry.data
@@ -388,7 +389,7 @@ export default function ProfilePage() {
         <EditProfileSheet
           profile={{
             full_name: profile.full_name, username: profile.username, bio: profile.bio, city: profile.city,
-            avatar_url: profile.avatar_url, pronouns: profile.pronouns, gender: profile.gender,
+            avatar_url: profile.avatar_url, is_private: profile.is_private, pronouns: profile.pronouns, gender: profile.gender,
           }}
           onClose={() => setShowEditProfile(false)}
           onSaved={() => { setShowEditProfile(false); load() }}
