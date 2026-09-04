@@ -12,6 +12,7 @@ type Listing = {
   title: string
   maker_name: string
   maker_city: string | null
+  maker_id: string
   price: number
   image_url: string | null
   voice_note_url: string | null
@@ -64,7 +65,7 @@ export default function VoiceFeed({ themeFilter }: { themeFilter: string | null 
       let query = supabase
         .from('products')
         .select(
-          'id, title, maker_name, maker_city, price, image_url, voice_note_url, voice_duration_sec, is_boosted, latitude, longitude, category'
+          'id, title, maker_name, maker_city, maker_id, price, image_url, voice_note_url, voice_duration_sec, is_boosted, latitude, longitude, category'
         )
         .eq('is_active', true)
         .eq('listing_type', 'fixed_price')
