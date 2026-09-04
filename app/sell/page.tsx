@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mic, Square, RotateCcw, X } from 'lucide-react'
+import { Mic, Square, RotateCcw, X, WifiOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -17,6 +17,44 @@ const CATEGORIES = [
 ]
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5MB
+
+// ---- Real byte-level upload progress via XHR straight to Supabase Storage's
+// REST endpoint (the JS SDK's .upload() doesn't expose progress events) ----
+async function uploadWithProgress(
+  bucket: string,
+  path: string,
+  file: Blob,
+  contentType: string,
+  onProgress: (pct: number) => void
+): Promise<string> {
+  const supabaseUrl = (supabase as any).supabaseUrl as string
+  const supabaseKey = (supabase as any).supabaseKey as string
+  const { data: { session } } = await supabase.auth.getSession()
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/${bucket}/${path}`, true)
+    xhr.setRequestHeader('apikey', supabaseKey)
+    xhr.setRequestHeader('Authorization', `Bearer ${session?.access_token || supabaseKey}`)
+    xhr.setRequestHeader('Content-Type', contentType)
+    xhr.setRequestHeader('x-upsert', 'false')
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100)
+        const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+        resolve(data.publicUrl)
+      } else {
+        reject(new Error(`Upload fail (${xhr.status}): ${xhr.responseText || 'server error'}`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Network error — upload nahi ho paaya'))
+    xhr.send(file)
+  })
+}
 
 export default function SellPage() {
   const router = useRouter()
@@ -45,6 +83,41 @@ export default function SellPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // ---- Upload progress ----
+  const [photoProgress, setPhotoProgress] = useState<number | null>(null)
+  const [voiceProgress, setVoiceProgress] = useState<number | null>(null)
+  const [savingStep, setSavingStep] = useState(false)
+
+  // ---- Offline detection ----
+  const [isOnline, setIsOnline] = useState(true)
+  const [pendingRetry, setPendingRetry] = useState(false)
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    function goOnline() {
+      setIsOnline(true)
+    }
+    function goOffline() {
+      setIsOnline(false)
+    }
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
+  // Jaise hi connection wapas aaye, agar user submit karne ki koshish
+  // offline mein rok di gayi thi, to apne aap dobara try karo.
+  useEffect(() => {
+    if (isOnline && pendingRetry) {
+      setPendingRetry(false)
+      handleSubmit()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline])
 
   function handlePhotoChange(file: File | null) {
     setError('')
@@ -86,7 +159,6 @@ export default function SellPage() {
 
       timerRef.current = setInterval(() => {
         setRecordSeconds((s) => {
-          // 15-second voice notes, jaisa plan mein tha — auto-stop
           if (s >= 14) {
             recorder.stop()
             setRecording(false)
@@ -109,11 +181,17 @@ export default function SellPage() {
     setAudioBlob(null)
     setAudioUrl(null)
     setRecordSeconds(0)
+    setVoiceProgress(null)
   }
 
   async function handleSubmit() {
     setError('')
 
+    if (!navigator.onLine) {
+      setError('Aap offline hain. Connection wapas aate hi listing apne aap upload ho jayegi.')
+      setPendingRetry(true)
+      return
+    }
     if (!user) {
       setError('Sign in karke try karein.')
       return
@@ -132,23 +210,29 @@ export default function SellPage() {
     }
 
     setSubmitting(true)
+    setPhotoProgress(photoFile ? 0 : null)
+    setVoiceProgress(0)
 
     try {
       let imageUrl: string | null = null
       if (photoFile) {
         const photoPath = `${user.id}/${Date.now()}-${photoFile.name}`
-        const { error: photoErr } = await supabase.storage.from('products').upload(photoPath, photoFile)
-        if (photoErr) throw new Error('Photo upload fail: ' + photoErr.message)
-        const { data: photoUrlData } = supabase.storage.from('products').getPublicUrl(photoPath)
-        imageUrl = photoUrlData.publicUrl
+        try {
+          imageUrl = await uploadWithProgress('products', photoPath, photoFile, photoFile.type, setPhotoProgress)
+        } catch (err: any) {
+          throw new Error('Photo upload fail: ' + err.message)
+        }
       }
 
       const audioPath = `voice-notes/${user.id}-${Date.now()}.webm`
-      const { error: audioErr } = await supabase.storage.from('audio').upload(audioPath, audioBlob, {
-        contentType: 'audio/webm',
-      })
-      if (audioErr) throw new Error('Voice note upload fail: ' + audioErr.message)
-      const { data: audioUrlData } = supabase.storage.from('audio').getPublicUrl(audioPath)
+      let audioPublicUrl: string
+      try {
+        audioPublicUrl = await uploadWithProgress('comment-audio', audioPath, audioBlob, 'audio/webm', setVoiceProgress)
+      } catch (err: any) {
+        throw new Error('Voice note upload fail: ' + err.message)
+      }
+
+      setSavingStep(true)
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -171,7 +255,7 @@ export default function SellPage() {
           stock: 1,
           is_active: true,
           listing_type: listingType,
-          voice_note_url: audioUrlData.publicUrl,
+          voice_note_url: audioPublicUrl,
           voice_duration_sec: recordSeconds,
           latitude: profileData?.latitude ?? null,
           longitude: profileData?.longitude ?? null,
@@ -195,16 +279,35 @@ export default function SellPage() {
         router.push('/')
       }
     } catch (err: any) {
-      setError(err?.message || 'Kuch galat ho gaya, dobara try karein.')
+      if (!navigator.onLine) {
+        setError('Connection beech mein toot gaya. Wapas aate hi dobara try hoga.')
+        setPendingRetry(true)
+      } else {
+        setError(err?.message || 'Kuch galat ho gaya, dobara try karein.')
+      }
     } finally {
       setSubmitting(false)
+      setSavingStep(false)
     }
   }
+
+  const overallProgress = (() => {
+    const parts = [photoFile ? photoProgress ?? 0 : null, voiceProgress ?? 0].filter((p) => p !== null) as number[]
+    if (parts.length === 0) return 0
+    return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length)
+  })()
 
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
       <h1 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-1">Naya Listing</h1>
       <p className="text-xs text-stone-500 mb-5">Photo aur apni aawaz mein jaankari daalein</p>
+
+      {!isOnline && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium rounded-xl px-3 py-2.5 mb-4">
+          <WifiOff size={15} />
+          Aap abhi offline hain. Form bharte rahiye — connection aate hi upload ho jayega.
+        </div>
+      )}
 
       {/* ---- Product / Service ---- */}
       <div className="flex rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 mb-4">
@@ -241,18 +344,20 @@ export default function SellPage() {
       {/* ---- Photo ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Product Photo</label>
       {photoPreview ? (
-        <div className="relative mb-4">
+        <div className="relative mb-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={photoPreview} alt="" className="w-full h-48 object-cover rounded-xl" />
-          <button
-            onClick={() => { setPhotoFile(null); setPhotoPreview(null) }}
-            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
-          >
-            <X size={14} />
-          </button>
+          {!submitting && (
+            <button
+              onClick={() => { setPhotoFile(null); setPhotoPreview(null) }}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       ) : (
-        <label className="flex items-center justify-center h-32 border-2 border-dashed border-stone-300 dark:border-stone-700 rounded-xl mb-4 cursor-pointer text-sm text-stone-400">
+        <label className="flex items-center justify-center h-32 border-2 border-dashed border-stone-300 dark:border-stone-700 rounded-xl mb-1.5 cursor-pointer text-sm text-stone-400">
           📷 Photo chuniye
           <input
             type="file"
@@ -262,17 +367,27 @@ export default function SellPage() {
           />
         </label>
       )}
+      {photoFile && photoProgress !== null && (
+        <div className="mb-4">
+          <div className="h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+            <div className="h-full bg-clay transition-all" style={{ width: `${photoProgress}%` }} />
+          </div>
+          <p className="text-[10px] text-stone-400 mt-0.5">Photo upload: {photoProgress}%</p>
+        </div>
+      )}
+      {!(photoFile && photoProgress !== null) && <div className="mb-4" />}
 
       {/* ---- Voice note ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
         Voice Note (15 sec) — zaroori hai
       </label>
-      <div className="border border-stone-200 dark:border-stone-700 rounded-xl p-4 mb-4 flex flex-col items-center gap-2">
+      <div className="border border-stone-200 dark:border-stone-700 rounded-xl p-4 mb-1.5 flex flex-col items-center gap-2">
         {!audioUrl ? (
           <>
             <button
               onClick={recording ? stopRecording : startRecording}
-              className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${recording ? 'bg-red-500' : 'bg-mehendi'}`}
+              disabled={submitting}
+              className={`w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-40 ${recording ? 'bg-red-500' : 'bg-mehendi'}`}
             >
               {recording ? <Square size={20} /> : <Mic size={22} />}
             </button>
@@ -282,29 +397,42 @@ export default function SellPage() {
         ) : (
           <div className="w-full flex items-center gap-2">
             <audio src={audioUrl} controls className="flex-1" />
-            <button onClick={reRecordVoice} className="text-stone-400" aria-label="Dobara record karein">
-              <RotateCcw size={18} />
-            </button>
+            {!submitting && (
+              <button onClick={reRecordVoice} className="text-stone-400" aria-label="Dobara record karein">
+                <RotateCcw size={18} />
+              </button>
+            )}
           </div>
         )}
       </div>
+      {voiceProgress !== null && (
+        <div className="mb-4">
+          <div className="h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+            <div className="h-full bg-mehendi transition-all" style={{ width: `${voiceProgress}%` }} />
+          </div>
+          <p className="text-[10px] text-stone-400 mt-0.5">Voice note upload: {voiceProgress}%</p>
+        </div>
+      )}
+      {voiceProgress === null && <div className="mb-4" />}
 
       {/* ---- Title / Description ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Title</label>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        disabled={submitting}
         placeholder="Jaise: Hand-Painted Clay Diya (Set of 4)"
-        className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm mb-4"
+        className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm mb-4 disabled:opacity-50"
       />
 
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Description</label>
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
+        disabled={submitting}
         rows={3}
         placeholder="Saamaan ke baare mein thodi jaankari"
-        className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm mb-4"
+        className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm mb-4 disabled:opacity-50"
       />
 
       {/* ---- Price / Category ---- */}
@@ -317,8 +445,9 @@ export default function SellPage() {
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
+            disabled={submitting}
             placeholder="149"
-            className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm"
+            className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
           />
         </div>
         <div>
@@ -326,7 +455,8 @@ export default function SellPage() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm"
+            disabled={submitting}
+            className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
@@ -342,13 +472,15 @@ export default function SellPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setAuctionHours(3)}
-              className={`flex-1 py-2 rounded-xl text-sm font-semibold border ${auctionHours === 3 ? 'bg-mehendi text-white border-mehendi' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}
+              disabled={submitting}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold border disabled:opacity-50 ${auctionHours === 3 ? 'bg-mehendi text-white border-mehendi' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}
             >
               3 ghante
             </button>
             <button
               onClick={() => setAuctionHours(6)}
-              className={`flex-1 py-2 rounded-xl text-sm font-semibold border ${auctionHours === 6 ? 'bg-mehendi text-white border-mehendi' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}
+              disabled={submitting}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold border disabled:opacity-50 ${auctionHours === 6 ? 'bg-mehendi text-white border-mehendi' : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300'}`}
             >
               6 ghante
             </button>
@@ -358,12 +490,29 @@ export default function SellPage() {
 
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
+      {submitting && (
+        <div className="mb-3">
+          <div className="h-2 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+            <div className="h-full bg-stone-900 dark:bg-clay transition-all" style={{ width: `${savingStep ? 100 : overallProgress}%` }} />
+          </div>
+          <p className="text-[11px] text-stone-500 mt-1 text-center">
+            {savingStep ? 'Listing save ho rahi hai…' : `Upload ho raha hai… ${overallProgress}%`}
+          </p>
+        </div>
+      )}
+
       <button
         onClick={handleSubmit}
         disabled={submitting}
         className="w-full bg-stone-900 dark:bg-clay text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
       >
-        {submitting ? 'List ho raha hai…' : listingType === 'auction' ? '🔨 Boli Shuru Karein' : 'List Karein'}
+        {submitting
+          ? 'List ho raha hai…'
+          : !isOnline
+          ? 'Offline — Connection ka wait karein'
+          : listingType === 'auction'
+          ? '🔨 Boli Shuru Karein'
+          : 'List Karein'}
       </button>
     </div>
   )
