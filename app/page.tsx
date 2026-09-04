@@ -1,11 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import StoriesRow from '@/components/StoriesRow'
 import CategoryFilter from '@/components/CategoryFilter'
-import ReelFeed from '@/components/ReelFeed'
-import MohallaScoreCard from '@/components/MohallaScoreCard'
-import SathiStreakCard from '@/components/SathiStreakCard'
+import VoiceFeed from '@/components/VoiceFeed'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -37,15 +34,8 @@ export default function Home() {
     }
 
     loadSavings()
-
-    supabase.rpc('mark_sathi_active_today').then(({ error }) => {
-      if (error) console.error('sathi streak mark failed:', error)
-    })
-    // Depend on user?.id (a primitive) rather than the whole user object —
-    // if useAuth() returns a new object reference on every render, depending
-    // on `user` here would re-fire this effect (and re-call the RPC) far
-    // more often than intended.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Sathi-streak ping ab Profile tab pe hoga jab woh khula ho, Home load
+    // hote hi nahi — isse Home page halka aur fast rehta hai.
 
     return () => {
       cancelled = true
@@ -64,12 +54,8 @@ export default function Home() {
         </div>
       )}
 
-      <StoriesRow />
-      <MohallaScoreCard />
-      <SathiStreakCard />
-
       <CategoryFilter activeTheme={activeTheme} onSelect={setActiveTheme} />
-      <ReelFeed themeFilter={activeTheme} />
+      <VoiceFeed themeFilter={activeTheme} />
     </div>
   )
 }
