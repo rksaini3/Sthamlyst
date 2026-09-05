@@ -6,7 +6,7 @@ import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
 import {
   Menu, Settings, Moon, Sun, Shield, LogOut, BadgeCheck, QrCode,
-  ScanLine, IndianRupee, Coins, Mic, Trash2, Pencil, Loader2,
+  ScanLine, Trash2, Pencil, Loader2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -14,9 +14,6 @@ import EditProfileSheet from '@/components/EditProfileSheet'
 import ShareProfileSheet from '@/components/ShareProfileSheet'
 import QRScannerSheet from '@/components/QRScannerSheet'
 import ProfessionalDashboard from '@/components/ProfessionalDashboard'
-import MohallaScoreCard from '@/components/MohallaScoreCard'
-import SathiStreakCard from '@/components/SathiStreakCard'
-import VoicePledgeSheet from '@/components/VoicePledgeSheet'
 
 type Profile = {
   full_name: string | null
@@ -55,12 +52,10 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wallet, setWallet] = useState<Wallet | null>(null)
-  const [hasVoicePledge, setHasVoicePledge] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [debugError, setDebugError] = useState('')
   const [showEditProfile, setShowEditProfile] = useState(false)
-  const [showVoicePledge, setShowVoicePledge] = useState(false)
   const [contentTab, setContentTab] = useState<ContentTab>('listings')
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -122,19 +117,6 @@ export default function ProfilePage() {
       const { data: walletData, error: walletError } = await supabase.rpc('get_wallet_summary')
       if (walletError) console.error('get_wallet_summary error:', walletError)
       else if (walletData) setWallet(walletData as Wallet)
-
-      const { data: pledge } = await supabase
-        .from('voice_pledges')
-        .select('id')
-        .eq('seller_id', targetUserId)
-        .maybeSingle()
-      setHasVoicePledge(!!pledge)
-
-      // Sathi Streak "aaj active hoon" ping — ab yahan hota hai, Home load
-      // hote hi nahi, taaki Home halka rahe.
-      supabase.rpc('mark_sathi_active_today').then(({ error: rpcError }) => {
-        if (rpcError) console.error('sathi streak mark failed:', rpcError)
-      })
     }
 
     setLoading(false)
@@ -154,7 +136,6 @@ export default function ProfilePage() {
       setDebugError('Seller Mode update fail ho gaya: ' + error.message)
       return
     }
-    if (value && hasVoicePledge === false) setShowVoicePledge(true)
   }
 
   async function handleSignOut() {
@@ -263,17 +244,6 @@ export default function ProfilePage() {
 
       {profile.bio && !isOwnProfile && <p className="text-sm text-stone-600 dark:text-stone-300 mt-3">{profile.bio}</p>}
 
-      {/* ---- Points, front and center as a stat ---- */}
-      <Link
-        href={isOwnProfile ? '/rewards' : '#'}
-        className={`mt-5 flex items-center justify-between border-y border-stone-200 dark:border-stone-700 py-3 ${!isOwnProfile ? 'pointer-events-none' : ''}`}
-      >
-        <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">Sthamly Points</span>
-        <span className="text-lg font-bold text-turmeric flex items-center gap-1">
-          <Coins size={16} /> {profile.sthamly_points}
-        </span>
-      </Link>
-
       {isOwnProfile && (
         <div className="flex gap-2 mt-4">
           <button onClick={() => setShowEditProfile(true)} className="flex-1 text-center border border-stone-300 dark:border-stone-600 text-stone-700 dark:text-stone-200 font-semibold py-2 rounded-xl text-sm">
@@ -283,17 +253,6 @@ export default function ProfilePage() {
             Share Profile
           </button>
         </div>
-      )}
-
-      {isOwnProfile && (
-        <>
-          <div className="mt-3">
-            <MohallaScoreCard />
-          </div>
-          <div className="mt-3">
-            <SathiStreakCard />
-          </div>
-        </>
       )}
 
       {profile.seller_verified && (
@@ -318,15 +277,6 @@ export default function ProfilePage() {
               <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform ${profile.is_seller ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           </div>
-
-          {profile.is_seller && hasVoicePledge === false && (
-            <button
-              onClick={() => setShowVoicePledge(true)}
-              className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2.5"
-            >
-              <Mic size={14} /> Safety Pledge record karna baaki hai
-            </button>
-          )}
 
           {/* ---- Seller Pro dashboard entry ---- */}
           {profile.is_seller && (
@@ -398,9 +348,6 @@ export default function ProfilePage() {
       {isOwnProfile && showShareQR && profile.username && <ShareProfileSheet handle={profile.username} onClose={() => setShowShareQR(false)} />}
       {isOwnProfile && showScanner && <QRScannerSheet onClose={() => setShowScanner(false)} />}
       {isOwnProfile && showDashboard && <ProfessionalDashboard onClose={() => setShowDashboard(false)} />}
-      {isOwnProfile && showVoicePledge && (
-        <VoicePledgeSheet onClose={() => setShowVoicePledge(false)} onSaved={() => { setShowVoicePledge(false); setHasVoicePledge(true) }} />
-      )}
     </div>
   )
 }
