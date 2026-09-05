@@ -275,18 +275,6 @@ export default function ProfilePage() {
       </Link>
 
       {isOwnProfile && (
-        <>
-          <div className="mt-3">
-            <MohallaScoreCard />
-          </div>
-          <div className="mt-3">
-            <SathiStreakCard />
-          </div>
-        </>
-      )}
-
-      {/* ---- Action row ---- */}
-      {isOwnProfile && (
         <div className="flex gap-2 mt-4">
           <button onClick={() => setShowEditProfile(true)} className="flex-1 text-center border border-stone-300 dark:border-stone-600 text-stone-700 dark:text-stone-200 font-semibold py-2 rounded-xl text-sm">
             Edit Profile
@@ -295,6 +283,17 @@ export default function ProfilePage() {
             Share Profile
           </button>
         </div>
+      )}
+
+      {isOwnProfile && (
+        <>
+          <div className="mt-3">
+            <MohallaScoreCard />
+          </div>
+          <div className="mt-3">
+            <SathiStreakCard />
+          </div>
+        </>
       )}
 
       {profile.seller_verified && (
