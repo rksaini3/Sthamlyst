@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import PageSkeleton from '@/components/PageSkeleton'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
-export default function NewChatPage() {
+function NewChatInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const listingId = searchParams.get('listing')
@@ -113,4 +113,12 @@ export default function NewChatPage() {
   }
 
   return <PageSkeleton rows={1} />
+}
+
+export default function NewChatPage() {
+  return (
+    <Suspense fallback={<PageSkeleton rows={1} />}>
+      <NewChatInner />
+    </Suspense>
+  )
 }
