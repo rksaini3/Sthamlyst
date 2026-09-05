@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mic, Square, RotateCcw, X, WifiOff } from 'lucide-react'
+import { Mic, Square, RotateCcw, X, WifiOff, Sparkles, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 
@@ -71,6 +71,13 @@ export default function SellPage() {
   const [price, setPrice] = useState('')
   const [category, setCategory] = useState(CATEGORIES[0])
   const [auctionHours, setAuctionHours] = useState<3 | 6>(3)
+
+  // ---- Sahayak AI (voice se form bharna) ----
+  const [sahayakRecording, setSahayakRecording] = useState(false)
+  const [sahayakLoading, setSahayakLoading] = useState(false)
+  const [sahayakError, setSahayakError] = useState('')
+  const sahayakRecorderRef = useRef<MediaRecorder | null>(null)
+  const sahayakChunksRef = useRef<Blob[]>([])
 
   // ---- Voice note recording ----
   const [recording, setRecording] = useState(false)
@@ -182,6 +189,58 @@ export default function SellPage() {
     setAudioUrl(null)
     setRecordSeconds(0)
     setVoiceProgress(null)
+  }
+
+  async function startSahayakRecording() {
+    setSahayakError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      sahayakChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) sahayakChunksRef.current.push(e.data)
+      }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const blob = new Blob(sahayakChunksRef.current, { type: 'audio/webm' })
+        await sendToSahayak(blob)
+      }
+
+      recorder.start()
+      sahayakRecorderRef.current = recorder
+      setSahayakRecording(true)
+    } catch {
+      setSahayakError('Microphone access nahi mil paaya.')
+    }
+  }
+
+  function stopSahayakRecording() {
+    sahayakRecorderRef.current?.stop()
+    setSahayakRecording(false)
+  }
+
+  async function sendToSahayak(blob: Blob) {
+    setSahayakLoading(true)
+    setSahayakError('')
+    try {
+      const form = new FormData()
+      form.append('audio', blob, 'sahayak.webm')
+
+      const res = await fetch('/api/generate-listing', { method: 'POST', body: form })
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || 'Sahayak se jawab nahi mila')
+
+      if (data.title) setTitle(data.title)
+      if (data.description) setDescription(data.description)
+      if (data.category) setCategory(data.category)
+      if (data.price) setPrice(String(data.price))
+    } catch (err: any) {
+      setSahayakError(err?.message || 'Sahayak abhi kaam nahi kar paaya, khud type kar lijiye.')
+    } finally {
+      setSahayakLoading(false)
+    }
   }
 
   async function handleSubmit() {
@@ -414,6 +473,36 @@ export default function SellPage() {
         </div>
       )}
       {voiceProgress === null && <div className="mb-4" />}
+
+      {/* ---- Sahayak AI: voice se Title/Description bharwao ---- */}
+      <div className="mb-4 border border-violet/30 bg-violet-light rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={15} className="text-violet" />
+          <p className="text-xs font-bold text-violet">Sahayak se boliye — form khud bhar jayega</p>
+        </div>
+        <button
+          onClick={sahayakRecording ? stopSahayakRecording : startSahayakRecording}
+          disabled={sahayakLoading}
+          className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 ${
+            sahayakRecording ? 'bg-red-500 text-white' : 'bg-violet text-white'
+          }`}
+        >
+          {sahayakLoading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Sun raha hoon, likh raha hoon…
+            </>
+          ) : sahayakRecording ? (
+            <>
+              <Square size={14} /> Ruko, ho gaya
+            </>
+          ) : (
+            <>
+              <Mic size={16} /> Boliye: &quot;ये मिट्टी का दिया है, चार का सेट, डेढ़ सौ रुपये&quot;
+            </>
+          )}
+        </button>
+        {sahayakError && <p className="text-xs text-red-600 mt-1.5">{sahayakError}</p>}
+      </div>
 
       {/* ---- Title / Description ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Title</label>
