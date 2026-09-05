@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Mic, Square, RotateCcw, X, WifiOff, Sparkles, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -54,16 +54,13 @@ async function uploadWithProgress(
   })
 }
 
-export default function SellPage() {
+function SellPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
 
-  // Service option hata diya gaya hai — Phase 1 mein sirf Product.
   const itemType: 'product' = 'product'
 
-  // Listing type ab manual toggle se nahi, balki jahan se user aaya
-  // wahi tay karta hai: Home ke ➕ se '/sell', Boli ke ➕ se '/sell?type=auction'.
   const [listingType, setListingType] = useState<'fixed_price' | 'auction'>('fixed_price')
 
   useEffect(() => {
@@ -81,14 +78,12 @@ export default function SellPage() {
   const [category, setCategory] = useState(CATEGORIES[0])
   const [auctionHours, setAuctionHours] = useState<3 | 6>(3)
 
-  // ---- Sahayak AI (voice se form bharna) ----
   const [sahayakRecording, setSahayakRecording] = useState(false)
   const [sahayakLoading, setSahayakLoading] = useState(false)
   const [sahayakError, setSahayakError] = useState('')
   const sahayakRecorderRef = useRef<MediaRecorder | null>(null)
   const sahayakChunksRef = useRef<Blob[]>([])
 
-  // ---- Voice note recording ----
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -227,7 +222,7 @@ export default function SellPage() {
     try {
       const form = new FormData()
       form.append('audio', blob, 'sahayak.webm')
-      form.append('mode', listingType) // AI ko batao kaunsa form hai
+      form.append('mode', listingType)
 
       const res = await fetch('/api/generate-listing', { method: 'POST', body: form })
       const data = await res.json()
@@ -379,7 +374,6 @@ export default function SellPage() {
         </div>
       )}
 
-      {/* ---- Photo ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Product Photo</label>
       {photoPreview ? (
         <div className="relative mb-1.5">
@@ -415,7 +409,6 @@ export default function SellPage() {
       )}
       {!(photoFile && photoProgress !== null) && <div className="mb-4" />}
 
-      {/* ---- Voice note ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
         Voice Note (15 sec) — zaroori hai
       </label>
@@ -453,7 +446,6 @@ export default function SellPage() {
       )}
       {voiceProgress === null && <div className="mb-4" />}
 
-      {/* ---- Sahayak AI: voice se Title/Description/Price (+ Boli fields) bharwao ---- */}
       <div className="mb-4 border border-violet/30 bg-violet-light rounded-xl p-3">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles size={15} className="text-violet" />
@@ -487,7 +479,6 @@ export default function SellPage() {
         {sahayakError && <p className="text-xs text-red-600 mt-1.5">{sahayakError}</p>}
       </div>
 
-      {/* ---- Title / Description ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Title</label>
       <input
         value={title}
@@ -507,7 +498,6 @@ export default function SellPage() {
         className="w-full border border-stone-300 dark:border-stone-700 dark:bg-stone-800 rounded-xl px-3 py-2.5 text-sm mb-4 disabled:opacity-50"
       />
 
-      {/* ---- Price / Category ---- */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
@@ -537,7 +527,6 @@ export default function SellPage() {
         </div>
       </div>
 
-      {/* ---- Auction duration ---- */}
       {isAuction && (
         <div className="mb-4">
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Boli ka samay</label>
@@ -588,5 +577,13 @@ export default function SellPage() {
           : 'List Karein'}
       </button>
     </div>
+  )
+}
+
+export default function SellPage() {
+  return (
+    <Suspense fallback={null}>
+      <SellPageInner />
+    </Suspense>
   )
 }
