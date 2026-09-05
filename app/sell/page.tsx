@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Mic, Square, RotateCcw, X, WifiOff, Sparkles, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -18,8 +18,6 @@ const CATEGORIES = [
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5MB
 
-// ---- Real byte-level upload progress via XHR straight to Supabase Storage's
-// REST endpoint (the JS SDK's .upload() doesn't expose progress events) ----
 async function uploadWithProgress(
   bucket: string,
   path: string,
@@ -58,10 +56,21 @@ async function uploadWithProgress(
 
 export default function SellPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
 
-  const [itemType, setItemType] = useState<'product' | 'service'>('product')
+  // Service option hata diya gaya hai — Phase 1 mein sirf Product.
+  const itemType: 'product' = 'product'
+
+  // Listing type ab manual toggle se nahi, balki jahan se user aaya
+  // wahi tay karta hai: Home ke ➕ se '/sell', Boli ke ➕ se '/sell?type=auction'.
   const [listingType, setListingType] = useState<'fixed_price' | 'auction'>('fixed_price')
+
+  useEffect(() => {
+    if (searchParams.get('type') === 'auction') {
+      setListingType('auction')
+    }
+  }, [searchParams])
 
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -91,23 +100,17 @@ export default function SellPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // ---- Upload progress ----
   const [photoProgress, setPhotoProgress] = useState<number | null>(null)
   const [voiceProgress, setVoiceProgress] = useState<number | null>(null)
   const [savingStep, setSavingStep] = useState(false)
 
-  // ---- Offline detection ----
   const [isOnline, setIsOnline] = useState(true)
   const [pendingRetry, setPendingRetry] = useState(false)
 
   useEffect(() => {
     setIsOnline(navigator.onLine)
-    function goOnline() {
-      setIsOnline(true)
-    }
-    function goOffline() {
-      setIsOnline(false)
-    }
+    function goOnline() { setIsOnline(true) }
+    function goOffline() { setIsOnline(false) }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     return () => {
@@ -116,8 +119,6 @@ export default function SellPage() {
     }
   }, [])
 
-  // Jaise hi connection wapas aaye, agar user submit karne ki koshish
-  // offline mein rok di gayi thi, to apne aap dobara try karo.
   useEffect(() => {
     if (isOnline && pendingRetry) {
       setPendingRetry(false)
@@ -226,6 +227,7 @@ export default function SellPage() {
     try {
       const form = new FormData()
       form.append('audio', blob, 'sahayak.webm')
+      form.append('mode', listingType) // AI ko batao kaunsa form hai
 
       const res = await fetch('/api/generate-listing', { method: 'POST', body: form })
       const data = await res.json()
@@ -236,6 +238,9 @@ export default function SellPage() {
       if (data.description) setDescription(data.description)
       if (data.category) setCategory(data.category)
       if (data.price) setPrice(String(data.price))
+      if (listingType === 'auction' && (data.auction_hours === 3 || data.auction_hours === 6)) {
+        setAuctionHours(data.auction_hours)
+      }
     } catch (err: any) {
       setSahayakError(err?.message || 'Sahayak abhi kaam nahi kar paaya, khud type kar lijiye.')
     } finally {
@@ -260,7 +265,7 @@ export default function SellPage() {
       return
     }
     if (!price || Number(price) <= 0) {
-      setError(listingType === 'auction' ? 'Base price daalna zaroori hai.' : 'Price daalna zaroori hai.')
+      setError(listingType === 'auction' ? 'Shuruaati boli daalna zaroori hai.' : 'Daam daalna zaroori hai.')
       return
     }
     if (!audioBlob) {
@@ -310,7 +315,7 @@ export default function SellPage() {
           price: Number(price),
           image_url: imageUrl,
           category,
-          is_service: itemType === 'service',
+          is_service: false,
           stock: 1,
           is_active: true,
           listing_type: listingType,
@@ -356,10 +361,16 @@ export default function SellPage() {
     return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length)
   })()
 
+  const isAuction = listingType === 'auction'
+
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
-      <h1 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-1">Naya Listing</h1>
-      <p className="text-xs text-stone-500 mb-5">Photo aur apni aawaz mein jaankari daalein</p>
+      <h1 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-1">
+        {isAuction ? '🔨 Boli Lagwayein' : 'Naya Listing'}
+      </h1>
+      <p className="text-xs text-stone-500 mb-5">
+        {isAuction ? 'Photo aur aawaz mein bataiye, shuruaati boli kitni rakhni hai' : 'Photo aur apni aawaz mein jaankari daalein'}
+      </p>
 
       {!isOnline && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium rounded-xl px-3 py-2.5 mb-4">
@@ -367,38 +378,6 @@ export default function SellPage() {
           Aap abhi offline hain. Form bharte rahiye — connection aate hi upload ho jayega.
         </div>
       )}
-
-      {/* ---- Product / Service ---- */}
-      <div className="flex rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 mb-4">
-        <button
-          onClick={() => setItemType('product')}
-          className={`flex-1 py-2.5 text-sm font-semibold ${itemType === 'product' ? 'bg-clay text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
-        >
-          🏺 Product
-        </button>
-        <button
-          onClick={() => setItemType('service')}
-          className={`flex-1 py-2.5 text-sm font-semibold ${itemType === 'service' ? 'bg-clay text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
-        >
-          🛠️ Service
-        </button>
-      </div>
-
-      {/* ---- Fixed Price / Auction ---- */}
-      <div className="flex rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 mb-5">
-        <button
-          onClick={() => setListingType('fixed_price')}
-          className={`flex-1 py-2.5 text-sm font-semibold ${listingType === 'fixed_price' ? 'bg-mehendi text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
-        >
-          💬 Bhaav Karke Bechein
-        </button>
-        <button
-          onClick={() => setListingType('auction')}
-          className={`flex-1 py-2.5 text-sm font-semibold ${listingType === 'auction' ? 'bg-mehendi text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
-        >
-          🔨 Boli Lagwayein
-        </button>
-      </div>
 
       {/* ---- Photo ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Product Photo</label>
@@ -474,7 +453,7 @@ export default function SellPage() {
       )}
       {voiceProgress === null && <div className="mb-4" />}
 
-      {/* ---- Sahayak AI: voice se Title/Description bharwao ---- */}
+      {/* ---- Sahayak AI: voice se Title/Description/Price (+ Boli fields) bharwao ---- */}
       <div className="mb-4 border border-violet/30 bg-violet-light rounded-xl p-3">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles size={15} className="text-violet" />
@@ -494,6 +473,10 @@ export default function SellPage() {
           ) : sahayakRecording ? (
             <>
               <Square size={14} /> Ruko, ho gaya
+            </>
+          ) : isAuction ? (
+            <>
+              <Mic size={16} /> Boliye: &quot;पुराना पीतल का दिया, शुरुआत ₹300 से, 3 घंटे की बोली&quot;
             </>
           ) : (
             <>
@@ -528,7 +511,7 @@ export default function SellPage() {
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
-            {listingType === 'auction' ? 'Base Price (₹)' : 'Price (₹)'}
+            {isAuction ? 'Shuruaati Boli (₹)' : 'Shuruaati Daam (₹)'}
           </label>
           <input
             type="number"
@@ -555,7 +538,7 @@ export default function SellPage() {
       </div>
 
       {/* ---- Auction duration ---- */}
-      {listingType === 'auction' && (
+      {isAuction && (
         <div className="mb-4">
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Boli ka samay</label>
           <div className="flex gap-2">
@@ -574,6 +557,7 @@ export default function SellPage() {
               6 ghante
             </button>
           </div>
+          <p className="text-[10px] text-stone-400 mt-1">Sahayak se bola gaya samay yahan apne aap select ho jayega — chahen to badal sakte hain.</p>
         </div>
       )}
 
@@ -599,7 +583,7 @@ export default function SellPage() {
           ? 'List ho raha hai…'
           : !isOnline
           ? 'Offline — Connection ka wait karein'
-          : listingType === 'auction'
+          : isAuction
           ? '🔨 Boli Shuru Karein'
           : 'List Karein'}
       </button>
