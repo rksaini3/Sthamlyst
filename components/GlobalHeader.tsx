@@ -3,15 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Search, Bell, Sparkles, Moon, Sun, ScanLine } from 'lucide-react'
-import { useTheme } from '@/lib/ThemeProvider'
+import { Search, Bell, Sparkles, ScanLine } from 'lucide-react'
 import { useAuth } from '@/lib/AuthProvider'
 import { supabase } from '@/lib/supabase'
 import QRScannerSheet from '@/components/QRScannerSheet'
 
 export default function GlobalHeader() {
   const pathname = usePathname()
-  const { isDark, toggleDark } = useTheme()
   const { user } = useAuth()
   const [showScanner, setShowScanner] = useState(false)
   const [hasUnread, setHasUnread] = useState(false)
@@ -51,13 +49,6 @@ export default function GlobalHeader() {
           Sthamly
         </Link>
         <div className="flex items-center gap-4">
-          <button onClick={toggleDark} aria-label="Toggle dark mode">
-            {isDark ? (
-              <Sun size={20} strokeWidth={1.8} className="text-turmeric" />
-            ) : (
-              <Moon size={20} strokeWidth={1.8} className="text-indigo-600" />
-            )}
-          </button>
           <Link href="/search" aria-label="Search">
             <Search size={22} strokeWidth={1.8} className="text-indigo-600" />
           </Link>
