@@ -2,11 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Mic, Gavel, MessageCircle, User } from 'lucide-react'
+import { Mic, MessageCircle, User } from 'lucide-react'
 
 const items = [
   { href: '/', icon: Mic, label: 'Home' },
-  { href: '/boli', icon: Gavel, label: 'Boli' },
   { href: '/chat', icon: MessageCircle, label: 'Chats' },
   { href: '/profile', icon: User, label: 'Profile' },
 ]
@@ -14,7 +13,6 @@ const items = [
 export default function BottomNav() {
   const pathname = usePathname()
 
-  // Hide the nav on the login screen and inside an open chat thread
   if (pathname === '/login' || pathname.startsWith('/chat/')) return null
 
   return (
