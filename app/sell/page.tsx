@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Mic, Square, RotateCcw, X, WifiOff, Sparkles, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
@@ -59,15 +60,9 @@ function SellPageInner() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
 
-  const itemType: 'product' = 'product'
-
-  const [listingType, setListingType] = useState<'fixed_price' | 'auction'>('fixed_price')
-
-  useEffect(() => {
-    if (searchParams.get('type') === 'auction') {
-      setListingType('auction')
-    }
-  }, [searchParams])
+  // ---- ?type=auction se aaya ho to listingType lock kar do, toggle mat dikhao ----
+  const forcedType = searchParams.get('type') === 'auction' ? 'auction' : null
+  const [listingType, setListingType] = useState<'fixed_price' | 'auction'>(forcedType || 'fixed_price')
 
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -78,12 +73,14 @@ function SellPageInner() {
   const [category, setCategory] = useState(CATEGORIES[0])
   const [auctionHours, setAuctionHours] = useState<3 | 6>(3)
 
+  // ---- Sahayak AI (voice se form bharna) ----
   const [sahayakRecording, setSahayakRecording] = useState(false)
   const [sahayakLoading, setSahayakLoading] = useState(false)
   const [sahayakError, setSahayakError] = useState('')
   const sahayakRecorderRef = useRef<MediaRecorder | null>(null)
   const sahayakChunksRef = useRef<Blob[]>([])
 
+  // ---- Voice note recording (listing ke saath jaane wala public voice-note) ----
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -104,8 +101,12 @@ function SellPageInner() {
 
   useEffect(() => {
     setIsOnline(navigator.onLine)
-    function goOnline() { setIsOnline(true) }
-    function goOffline() { setIsOnline(false) }
+    function goOnline() {
+      setIsOnline(true)
+    }
+    function goOffline() {
+      setIsOnline(false)
+    }
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     return () => {
@@ -220,14 +221,33 @@ function SellPageInner() {
     setSahayakLoading(true)
     setSahayakError('')
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setSahayakError('Sign in karke try karein.')
+        return
+      }
+
       const form = new FormData()
       form.append('audio', blob, 'sahayak.webm')
       form.append('mode', listingType)
 
-      const res = await fetch('/api/generate-listing', { method: 'POST', body: form })
+      const res = await fetch('/api/generate-listing', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: form,
+      })
       const data = await res.json()
 
-      if (!res.ok) throw new Error(data.error || 'Sahayak se jawab nahi mila')
+      if (!res.ok) {
+        if (data.limit_reached) {
+          setSahayakError(
+            `Is mahine ki ${data.limit} free Sahayak listings ho chuki hain. Unlimited ke liye Sthamly Pro lijiye.`
+          )
+        } else {
+          throw new Error(data.error || 'Sahayak se jawab nahi mila')
+        }
+        return
+      }
 
       if (data.title) setTitle(data.title)
       if (data.description) setDescription(data.description)
@@ -260,7 +280,7 @@ function SellPageInner() {
       return
     }
     if (!price || Number(price) <= 0) {
-      setError(listingType === 'auction' ? 'Shuruaati boli daalna zaroori hai.' : 'Daam daalna zaroori hai.')
+      setError(listingType === 'auction' ? 'Shuruaati daam daalna zaroori hai.' : 'Daam daalna zaroori hai.')
       return
     }
     if (!audioBlob) {
@@ -356,21 +376,34 @@ function SellPageInner() {
     return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length)
   })()
 
-  const isAuction = listingType === 'auction'
-
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
       <h1 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-1">
-        {isAuction ? '🔨 Boli Lagwayein' : 'Naya Listing'}
+        {listingType === 'auction' ? '🔨 Nayi Boli' : 'Naya Listing'}
       </h1>
-      <p className="text-xs text-stone-500 mb-5">
-        {isAuction ? 'Photo aur aawaz mein bataiye, shuruaati boli kitni rakhni hai' : 'Photo aur apni aawaz mein jaankari daalein'}
-      </p>
+      <p className="text-xs text-stone-500 mb-5">Photo aur apni aawaz mein jaankari daalein</p>
 
       {!isOnline && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium rounded-xl px-3 py-2.5 mb-4">
           <WifiOff size={15} />
           Aap abhi offline hain. Form bharte rahiye — connection aate hi upload ho jayega.
+        </div>
+      )}
+
+      {!forcedType && (
+        <div className="flex rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 mb-5">
+          <button
+            onClick={() => setListingType('fixed_price')}
+            className={`flex-1 py-2.5 text-sm font-semibold ${listingType === 'fixed_price' ? 'bg-mehendi text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
+          >
+            💬 Bhaav Karke Bechein
+          </button>
+          <button
+            onClick={() => setListingType('auction')}
+            className={`flex-1 py-2.5 text-sm font-semibold ${listingType === 'auction' ? 'bg-mehendi text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-500'}`}
+          >
+            🔨 Boli Lagwayein
+          </button>
         </div>
       )}
 
@@ -466,9 +499,9 @@ function SellPageInner() {
             <>
               <Square size={14} /> Ruko, ho gaya
             </>
-          ) : isAuction ? (
+          ) : listingType === 'auction' ? (
             <>
-              <Mic size={16} /> Boliye: &quot;पुराना पीतल का दिया, शुरुआत ₹300 से, 3 घंटे की बोली&quot;
+              <Mic size={16} /> Boliye: &quot;मिट्टी का दिया, शुरुआती दाम सौ रुपये, 3 घंटे की बोली&quot;
             </>
           ) : (
             <>
@@ -476,7 +509,16 @@ function SellPageInner() {
             </>
           )}
         </button>
-        {sahayakError && <p className="text-xs text-red-600 mt-1.5">{sahayakError}</p>}
+        {sahayakError && (
+          <div className="mt-1.5">
+            <p className="text-xs text-red-600">{sahayakError}</p>
+            {sahayakError.includes('Sthamly Pro') && (
+              <Link href="/seller-pro" className="text-xs font-bold text-violet underline">
+                Sthamly Pro dekhein →
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Title</label>
@@ -501,7 +543,7 @@ function SellPageInner() {
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
-            {isAuction ? 'Shuruaati Boli (₹)' : 'Shuruaati Daam (₹)'}
+            शुरुआती दाम (₹)
           </label>
           <input
             type="number"
@@ -527,7 +569,7 @@ function SellPageInner() {
         </div>
       </div>
 
-      {isAuction && (
+      {listingType === 'auction' && (
         <div className="mb-4">
           <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Boli ka samay</label>
           <div className="flex gap-2">
@@ -546,7 +588,6 @@ function SellPageInner() {
               6 ghante
             </button>
           </div>
-          <p className="text-[10px] text-stone-400 mt-1">Sahayak se bola gaya samay yahan apne aap select ho jayega — chahen to badal sakte hain.</p>
         </div>
       )}
 
@@ -572,7 +613,7 @@ function SellPageInner() {
           ? 'List ho raha hai…'
           : !isOnline
           ? 'Offline — Connection ka wait karein'
-          : isAuction
+          : listingType === 'auction'
           ? '🔨 Boli Shuru Karein'
           : 'List Karein'}
       </button>
@@ -582,7 +623,7 @@ function SellPageInner() {
 
 export default function SellPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<p className="text-center text-stone-400 text-sm mt-10">लोड हो रहा है…</p>}>
       <SellPageInner />
     </Suspense>
   )
