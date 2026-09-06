@@ -38,8 +38,6 @@ type Wallet = {
   plan_renews_at: string | null
 }
 
-type ContentTab = 'listings' | 'auctions'
-
 export default function ProfilePage() {
   const params = useParams()
   const rawParam = params?.userId
@@ -56,7 +54,6 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [debugError, setDebugError] = useState('')
   const [showEditProfile, setShowEditProfile] = useState(false)
-  const [contentTab, setContentTab] = useState<ContentTab>('listings')
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDark, setIsDark] = useState(false)
@@ -174,7 +171,6 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
-      {/* ---- Header: avatar + identity + primary actions ---- */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="relative w-16 h-16 flex-shrink-0 rounded-full overflow-hidden bg-indigobrand-light flex items-center justify-center">
@@ -263,11 +259,10 @@ export default function ProfilePage() {
 
       {isOwnProfile && (
         <>
-          {/* ---- Seller Mode toggle ---- */}
           <div className="mt-4 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-sm text-stone-900 dark:text-stone-100">Seller Mode</p>
-              <p className="text-xs text-stone-500 dark:text-stone-400">Voice card feed aur Boli Board pe apna saamaan bechiye</p>
+              <p className="text-xs text-stone-500 dark:text-stone-400">Voice card feed pe apna saamaan bechiye</p>
             </div>
             <button
               disabled={saving}
@@ -278,7 +273,6 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* ---- Seller Pro dashboard entry ---- */}
           {profile.is_seller && (
             <button onClick={() => setShowDashboard(true)} className="mt-3 w-full flex items-center justify-between text-left border border-stone-200 dark:border-stone-700 rounded-xl px-4 py-3">
               <div>
@@ -289,7 +283,6 @@ export default function ProfilePage() {
             </button>
           )}
 
-          {/* ---- Earnings + plan ---- */}
           {profile.is_seller && wallet && (
             <div className="relative mt-3 bg-mehendi text-white rounded-2xl p-4 overflow-hidden">
               <div className="relative flex items-center justify-between">
@@ -310,21 +303,16 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="mt-4 flex gap-3">
-            {profile.is_seller && <Link href="/sell" className="flex-1 text-center bg-stone-900 text-white font-semibold py-3 rounded-xl text-sm">+ Naya Listing (Photo + Voice)</Link>}
-            {profile.is_seller && <Link href="/boli/new" className="flex-1 text-center bg-clay text-white font-semibold py-3 rounded-xl text-sm">🔨 Nayi Boli Shuru Karein</Link>}
+          <div className="mt-4">
+            {profile.is_seller && <Link href="/sell" className="block text-center bg-stone-900 text-white font-semibold py-3 rounded-xl text-sm">+ Naya Listing (Photo + Voice)</Link>}
           </div>
         </>
       )}
 
-      {/* ---- Content: My Listings / My Auctions — no more Reels/Ads/Saved ---- */}
       {profile.is_seller && (
         <div className="mt-8">
-          <div className="flex gap-1 border-b border-stone-200 dark:border-stone-700">
-            <ContentTabButton label="Listings" active={contentTab === 'listings'} onClick={() => setContentTab('listings')} />
-            <ContentTabButton label="My Auctions" active={contentTab === 'auctions'} onClick={() => setContentTab('auctions')} />
-          </div>
-          <MyContentGrid tab={contentTab} userId={targetUserId} isOwnProfile={isOwnProfile} />
+          <h2 className="text-sm font-bold text-stone-800 dark:text-stone-100 mb-2">Mere Listings</h2>
+          <MyListingsGrid userId={targetUserId} isOwnProfile={isOwnProfile} />
         </div>
       )}
 
@@ -352,17 +340,9 @@ export default function ProfilePage() {
   )
 }
 
-function ContentTabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className={`flex-1 text-center text-xs font-semibold py-2.5 border-b-2 ${active ? 'border-clay text-clay' : 'border-transparent text-stone-400'}`}>
-      {label}
-    </button>
-  )
-}
-
 type GridItem = { id: string; title: string; image_url: string | null; subtitle?: string }
 
-function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId: string; isOwnProfile: boolean }) {
+function MyListingsGrid({ userId, isOwnProfile }: { userId: string; isOwnProfile: boolean }) {
   const [items, setItems] = useState<GridItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -371,31 +351,17 @@ function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId:
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, userId])
+  }, [userId])
 
   async function load() {
     setLoading(true)
     setActionError('')
-    if (tab === 'listings') {
-      const { data } = await supabase
-        .from('products')
-        .select('id, title, image_url, price')
-        .eq('maker_id', userId)
-        .order('created_at', { ascending: false })
-      setItems((data || []).map((d: any) => ({ id: d.id, title: d.title, image_url: d.image_url, subtitle: `₹${d.price}` })))
-    } else {
-      const { data } = await supabase
-        .from('auctions')
-        .select('id, status, current_highest_bid, base_price, products ( title, image_url )')
-        .eq('seller_id', userId)
-        .order('created_at', { ascending: false })
-      setItems((data || []).map((d: any) => ({
-        id: d.id,
-        title: d.products?.title || 'Boli',
-        image_url: d.products?.image_url || null,
-        subtitle: `${d.status} · ₹${d.current_highest_bid ?? d.base_price}`,
-      })))
-    }
+    const { data } = await supabase
+      .from('products')
+      .select('id, title, image_url, price')
+      .eq('maker_id', userId)
+      .order('created_at', { ascending: false })
+    setItems((data || []).map((d: any) => ({ id: d.id, title: d.title, image_url: d.image_url, subtitle: `₹${d.price}` })))
     setLoading(false)
   }
 
@@ -405,9 +371,7 @@ function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId:
     setActionError('')
     setDeletingId(id)
 
-    const table = tab === 'listings' ? 'products' : 'auctions'
-    const ownerCol = tab === 'listings' ? 'maker_id' : 'seller_id'
-    const { error } = await supabase.from(table).delete().eq('id', id).eq(ownerCol, userId)
+    const { error } = await supabase.from('products').delete().eq('id', id).eq('maker_id', userId)
 
     setDeletingId(null)
     if (error) { setActionError('Delete nahi ho paya: ' + error.message); return }
@@ -422,7 +386,7 @@ function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId:
       {items.length === 0 ? (
         <p className="text-center text-stone-400 text-xs py-8">Kuch nahi hai yahan abhi.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-0.5 mt-3">
+        <div className="grid grid-cols-3 gap-0.5">
           {items.map((item) => (
             <div key={item.id} className="relative aspect-square bg-stone-100 overflow-hidden group">
               {item.image_url ? (
@@ -434,7 +398,7 @@ function MyContentGrid({ tab, userId, isOwnProfile }: { tab: ContentTab; userId:
               {item.subtitle && (
                 <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">{item.subtitle}</span>
               )}
-              {isOwnProfile && tab === 'listings' && (
+              {isOwnProfile && (
                 <Link
                   href={`/sell/edit/${item.id}`}
                   aria-label="Listing edit karein"
