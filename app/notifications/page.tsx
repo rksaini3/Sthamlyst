@@ -5,9 +5,20 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import PageSkeleton from '@/components/PageSkeleton'
 
+// Follow-Request system abhi kisi bhi phase mein finalize nahi hua hai —
+// isliye is UI ko soft-remove kiya gaya hai (Boli jaisa pattern): backend
+// RPCs chhede nahi gaye, sirf render/fetch yahan se rok diya gaya hai.
+// Jab ye feature formally roadmap mein aaye, isse true kar dena.
+const FOLLOW_REQUESTS_ENABLED = false
+
 type Notification = {
   id: string
-  category: 'reward' | 'order' | 'social' | 'learning'
+  // 'reward' aur 'learning' hata diye — ये hamare kisi finalized phase ka
+  // hissa nahi the (reward → paused Sthamly Points se juda tha, learning
+  // kabhi discuss hi nahi hua). Sirf wahi 2 categories rakhi hain jo
+  // hamare decide-kiye 3 notification-triggers se match karti hain:
+  // 'social' → naya chat message, 'order' → Deal Lock confirm.
+  category: 'social' | 'order'
   title: string
   body: string | null
   is_read: boolean
@@ -22,17 +33,13 @@ type FollowRequest = {
 }
 
 const CATEGORY_ICON: Record<string, string> = {
-  reward: '🪙',
-  order: '📦',
   social: '💬',
-  learning: '📚',
+  order: '📦',
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
-  reward: 'bg-turmeric-light text-turmeric',
-  order: 'bg-mehendi-light text-mehendi',
   social: 'bg-indigobrand-light text-indigobrand',
-  learning: 'bg-violet-light text-violet',
+  order: 'bg-mehendi-light text-mehendi',
 }
 
 export default function NotificationsPage() {
@@ -54,21 +61,29 @@ export default function NotificationsPage() {
   async function load() {
     if (!user) return
     setLoadError('')
-    const [notifRes, reqRes] = await Promise.all([
+
+    const calls: Promise<any>[] = [
       supabase
         .from('notifications')
         .select('id, category, title, body, is_read, created_at')
-        .eq('user_id', user.id) // explicit filter — never rely on RLS alone
+        .eq('user_id', user.id)
+        .in('category', ['social', 'order']) // reward/learning agar purane data mein hon, unhe skip karo
         .order('created_at', { ascending: false })
         .limit(50),
-      supabase.rpc('get_pending_follow_requests'),
-    ])
+    ]
+    if (FOLLOW_REQUESTS_ENABLED) {
+      calls.push(supabase.rpc('get_pending_follow_requests'))
+    }
 
-    if (notifRes.error || reqRes.error) {
+    const results = await Promise.all(calls)
+    const notifRes = results[0]
+    const reqRes = FOLLOW_REQUESTS_ENABLED ? results[1] : null
+
+    if (notifRes.error || reqRes?.error) {
       setLoadError('Notifications load nahi ho payin. Refresh karke try karo.')
     }
     if (notifRes.data) setItems(notifRes.data as Notification[])
-    if (reqRes.data) setFollowRequests(reqRes.data as FollowRequest[])
+    if (reqRes?.data) setFollowRequests(reqRes.data as FollowRequest[])
     setLoading(false)
   }
 
@@ -78,7 +93,7 @@ export default function NotificationsPage() {
 
     const { error } = await supabase.rpc('mark_notification_read', { p_id: id })
     if (error) {
-      setItems(prevItems) // rollback on failure
+      setItems(prevItems)
     }
   }
 
@@ -125,17 +140,21 @@ export default function NotificationsPage() {
         >
           All
         </button>
-        <button
-          onClick={() => setFilter('requests')}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1 ${filter === 'requests' ? 'bg-white text-clay shadow-sm' : 'text-stone-500'}`}
-        >
-          Requests
-          {followRequests.length > 0 && (
-            <span className="bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
-              {followRequests.length}
-            </span>
-          )}
-        </button>
+
+        {FOLLOW_REQUESTS_ENABLED && (
+          <button
+            onClick={() => setFilter('requests')}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1 ${filter === 'requests' ? 'bg-white text-clay shadow-sm' : 'text-stone-500'}`}
+          >
+            Requests
+            {followRequests.length > 0 && (
+              <span className="bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
+                {followRequests.length}
+              </span>
+            )}
+          </button>
+        )}
+
         <button
           onClick={() => setFilter('social')}
           className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${filter === 'social' ? 'bg-white text-indigobrand shadow-sm' : 'text-stone-500'}`}
@@ -153,7 +172,7 @@ export default function NotificationsPage() {
       {loadError && <p className="text-center text-red-500 text-xs mt-3">{loadError}</p>}
       {actionError && <p className="text-center text-red-500 text-xs mt-3">{actionError}</p>}
 
-      {filter === 'requests' ? (
+      {filter === 'requests' && FOLLOW_REQUESTS_ENABLED ? (
         <div className="mt-4 space-y-3">
           {followRequests.length === 0 ? (
             <p className="text-center text-stone-400 text-sm pt-10">Koi pending follow request nahi hai.</p>
