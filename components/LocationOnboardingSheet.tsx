@@ -62,8 +62,6 @@ export default function LocationOnboardingSheet({ onDone }: { onDone: () => void
           setGpsResult({ city, mohalla, lat: latitude, lng: longitude })
           setStep('gps-confirm')
         } catch {
-          // Coordinates mil gaye, lekin naam nahi pata chala — manual selection
-          // mein bhej do, coordinates save ke waqt saath rakhenge.
           setGpsResult({ city: null, mohalla: null, lat: latitude, lng: longitude })
           setStep('manual')
         }
