@@ -66,7 +66,7 @@ export default function NotificationsPage() {
     if (!user) return
     setLoadError('')
 
-    const calls: Promise<any>[] = [
+    const calls: PromiseLike<any>[] = [
       supabase
         .from('notifications')
         .select('id, category, title, body, is_read, created_at')
