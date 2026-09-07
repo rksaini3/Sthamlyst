@@ -10,6 +10,7 @@ import AnalyticsConsent from '@/components/AnalyticsConsent'
 import { AuthProvider } from '@/lib/AuthProvider'
 import { ThemeProvider } from '@/lib/ThemeProvider'
 import { PushInit } from '@/components/PushInit' // ← ADDED
+import LocationGate from '@/components/LocationGate'
 
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -44,13 +45,15 @@ export default function RootLayout({
       <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body">
         <ThemeProvider>
           <AuthProvider>
-            <GlobalHeader />
-            <ConnectivityToast />
-            {children}
-            <DynamicFab />
-            <BottomNav />
-            <AnalyticsConsent />
-            <PushInit /> {/* ← ADDED: registers push subscription once the user session is ready */}
+            <LocationGate>
+              <GlobalHeader />
+              <ConnectivityToast />
+              {children}
+              <DynamicFab />
+              <BottomNav />
+              <AnalyticsConsent />
+              <PushInit /> {/* ← ADDED: registers push subscription once the user session is ready */}
+            </LocationGate>
           </AuthProvider>
         </ThemeProvider>
       </body>
