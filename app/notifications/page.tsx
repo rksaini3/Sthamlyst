@@ -5,18 +5,22 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import PageSkeleton from '@/components/PageSkeleton'
 
-// Follow-Request system abhi kisi bhi phase mein finalize nahi hua hai —
-// isliye is UI ko soft-remove kiya gaya hai (Boli jaisa pattern): backend
-// RPCs chhede nahi gaye, sirf render/fetch yahan se rok diya gaya hai.
-// Jab ye feature formally roadmap mein aaye, isse true kar dena.
+// IMPORTANT: Ye sirf "future mein on karo" wala switch nahi hai. `follows`
+// table Sthamly 2.0 ke shuruaati migration mein hi permanently DROP kar di
+// gayi thi (reels/social system hataate waqt). Isliye accept_follow_request /
+// reject_follow_request / get_pending_follow_requests RPCs agar database mein
+// abhi bhi maujood hain, to wo ek non-existent table ko reference karte
+// honge — flag ko true karne se ye seedha error dega, kaam nahi karega.
+// Isko genuinely on karne ke liye poora follow-system (table + policies +
+// RPCs) dobara banana padega, sirf ye flag palatna kaafi nahi hoga.
 const FOLLOW_REQUESTS_ENABLED = false
 
 type Notification = {
   id: string
-  // 'reward' aur 'learning' hata diye — ये hamare kisi finalized phase ka
-  // hissa nahi the (reward → paused Sthamly Points se juda tha, learning
-  // kabhi discuss hi nahi hua). Sirf wahi 2 categories rakhi hain jo
-  // hamare decide-kiye 3 notification-triggers se match karti hain:
+  // 'reward' aur 'learning' hata diye — ये hamare decide-kiye 3
+  // notification-triggers se match nahi karti thi (reward → paused Sthamly
+  // Points se juda tha, learning kabhi discuss hi nahi hua). Sirf wahi 2
+  // categories rakhi hain jo hamare triggers se match karti hain:
   // 'social' → naya chat message, 'order' → Deal Lock confirm.
   category: 'social' | 'order'
   title: string
