@@ -1,8 +1,8 @@
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
-  skipWaiting: false,   // ← manual control sirf component ke haath mein
-  clientsClaim: false,  // ← duplicate/race controllerchange events band
+  skipWaiting: false,   // manual control — ServiceWorkerRegister component ke through
+  clientsClaim: false,
   disable: process.env.NODE_ENV === 'development',
   cleanupOutdatedCaches: true,
   fallbacks: { document: '/offline.html' },
@@ -16,8 +16,7 @@ const withPWA = require('next-pwa')({
         networkTimeoutSeconds: 5,
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 60 * 60, // ← 1 din se ghata kar 1 ghanta kiya,
-          // taaki deploy ke baad purana HTML zyada der tak serve na ho
+          maxAgeSeconds: 60 * 60,
         },
       },
     },
@@ -45,3 +44,10 @@ const withPWA = require('next-pwa')({
     },
   ],
 })
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+}
+
+module.exports = withPWA(nextConfig)
