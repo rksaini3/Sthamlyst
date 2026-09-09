@@ -1,4 +1,3 @@
-// Add this to your EXISTING public/sw.js (importScripts se load hoti hai)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -10,8 +9,8 @@ self.addEventListener('push', (event) => {
 
   const notificationOptions = {
     body: data.body || 'Kuch naya hua Sthamly pe!',
-    icon: '/icon-192x192.png',
-    badge: '/badge-72x72.png',
+    icon: '/icon-192.png',      // ← FIXED: pehle icon-192x192.png tha, file exist nahi karti thi
+    badge: '/icon-192.png',      // ← FIXED: badge-72x72.png bhi exist nahi karti, isliye same icon use kiya
     tag: data.tag || 'sthamly-notification',
     requireInteraction: data.requireInteraction || false,
     data: { url: data.url || '/', userId: data.userId },
