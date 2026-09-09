@@ -2,39 +2,34 @@
 
 import { useEffect } from 'react'
 
+const RELOAD_FLAG = 'sthamly-sw-reloaded'
+
 export default function SwUpdateWatcher() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
 
-    let reloaded = false
-
-    function forceReload() {
-      if (reloaded) return
-      reloaded = true
-      window.location.reload()
-    }
+    // Agar is tab-session mein pehle hi ek baar reload kar chuke hain,
+    // to dobara kabhi mat karo — yehi cheez infinite-loop ko rokti hai.
+    if (sessionStorage.getItem(RELOAD_FLAG)) return
 
     navigator.serviceWorker.getRegistration().then((registration) => {
       if (!registration) return
 
-      // Agar koi naya service-worker "waiting" state mein hai (already
-      // install ho chuka hai lekin purana wala abhi bhi control kar raha
-      // hai), use turant activate karne ko bolo.
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+      // Sirf tabhi kuch karo jab GENUINELY ek naya service-worker
+      // "waiting" state mein ho (matlab real update available hai).
+      // Warna kabhi bhi controllerchange listener mat lagao — usi se
+      // loop banta hai.
+      if (!registration.waiting) return
+
+      function onControllerChange() {
+        if (sessionStorage.getItem(RELOAD_FLAG)) return
+        sessionStorage.setItem(RELOAD_FLAG, '1')
+        window.location.reload()
       }
 
-      // Jab naya service-worker control lene lage, page ko ek baar reload
-      // kar do taaki naya JS/CSS turant load ho, purana cached shell nahi.
-      navigator.serviceWorker.addEventListener('controllerchange', forceReload)
-
-      // Har load pe update check bhi kara do, taaki agla deploy bhi jaldi pakde.
-      registration.update().catch(() => {})
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+      navigator.serviceWorker.addEventListener('controllerchange', onControllerChange, { once: true })
     })
-
-    return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', forceReload)
-    }
   }, [])
 
   return null
