@@ -1,40 +1,3 @@
-import type { Metadata, Viewport } from 'next'
-import type { ReactNode } from 'react'
-import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
-import './globals.css'
-import BottomNav from '@/components/BottomNav'
-import DynamicFab from '@/components/DynamicFab'
-import GlobalHeader from '@/components/GlobalHeader'
-import ConnectivityToast from '@/components/ConnectivityToast'
-import AnalyticsConsent from '@/components/AnalyticsConsent'
-import { AuthProvider } from '@/lib/AuthProvider'
-import { ThemeProvider } from '@/lib/ThemeProvider'
-import { PushInit } from '@/components/PushInit' // ← ADDED
-import LocationGate from '@/components/LocationGate'
-
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' })
-const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono', weight: ['400', '500'] })
-
-export const metadata: Metadata = {
-  title: 'Sthamly — Boliye, Bhaav Kariye, Sauda Pakka!',
-  description: 'Voice-first hyperlocal marketplace — apne mohalle ke dukaandaron se bolkar bhaav kariye, live boli lagaiye.',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Sthamly',
-  },
-}
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-  themeColor: '#B5451B',
-}
-
 export default function RootLayout({
   children,
 }: {
@@ -42,17 +5,39 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${notoDevanagari.variable} ${plexMono.variable}`}>
-      <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body">
+      {/* 
+        body में md:bg-... जोड़ने से लैपटॉप पर सुंदर बैकग्राउंड दिखेगा 
+        और md:flex से आपका पूरा ऐप स्क्रीन के बिल्कुल बीच (Center) में आ जाएगा।
+      */}
+      <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body md:bg-stone-100 md:dark:bg-stone-900 md:flex md:justify-center md:items-start">
         <ThemeProvider>
           <AuthProvider>
             <LocationGate>
-              <GlobalHeader />
-              <ConnectivityToast />
-              {children}
-              <DynamicFab />
-              <BottomNav />
-              <AnalyticsConsent />
-              <PushInit /> {/* ← ADDED: registers push subscription once the user session is ready */}
+              
+              {/* 
+                --- मुख्य सुधार यहाँ है ---
+                यह नया div आपके पूरे ऐप को लैपटॉप/डेस्कटॉप स्क्रीन पर बीच में लाएगा 
+                और 'max-w-md' की वजह से इसकी चौड़ाई 448px (एक मोबाइल जैसी) फिक्स रखेगा।
+                इससे DevTools बंद होने पर भी ऐप कभी ब्लैंक नहीं होगा!
+              */}
+              <div className="w-full max-w-md mx-auto min-h-dvh bg-white dark:bg-stone-950 shadow-2xl relative flex flex-col justify-between">
+                
+                <GlobalHeader />
+                <ConnectivityToast />
+                
+                {/* मुख्य कंटेंट जो बची हुई पूरी जगह लेगा */}
+                <main className="flex-1 w-full">
+                  {children}
+                </main>
+                
+                <DynamicFab />
+                <BottomNav />
+                <AnalyticsConsent />
+                <PushInit />
+                
+              </div>
+              {/* --- सुधार समाप्त --- */}
+
             </LocationGate>
           </AuthProvider>
         </ThemeProvider>
