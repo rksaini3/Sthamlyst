@@ -1,87 +1,53 @@
-import type { Metadata, Viewport } from 'next'
-import * as React from 'react'
-import { Fraunces, Inter, Noto_Sans_Devanagari, IBM_Plex_Mono } from 'next/font/google'
-import './globals.css'
-import BottomNav from '@/components/BottomNav'
-import DynamicFab from '@/components/DynamicFab'
-import GlobalHeader from '@/components/GlobalHeader'
-import ConnectivityToast from '@/components/ConnectivityToast'
-import AnalyticsConsent from '@/components/AnalyticsConsent'
-import { AuthProvider } from '@/lib/AuthProvider'
-import { ThemeProvider } from '@/lib/ThemeProvider'
-import { PushInit } from '@/components/PushInit'
-import LocationGate from '@/components/LocationGate'
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
+import Script from 'next/script';
+import './globals.css'; // आपकी पुरानी ग्लोबल CSS फ़ाइल
 
-// Fonts configuration
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['500', '600', '700'] })
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-const notoDevanagari = Noto_Sans_Devanagari({ subsets: ['devanagari'], variable: '--font-noto-devanagari' })
-const plexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-plex-mono', weight: ['400', '500'] })
+const inter = Inter({ subsets: ['latin'] });
 
-// PWA Metadata
+// 📱 PWA और SEO के लिए आवश्यक मेटाडेटा
 export const metadata: Metadata = {
-  title: 'Sthamly — Boliye, Bhaav Kariye, Sauda Pakka!',
-  description: 'Voice-first hyperlocal marketplace — apne mohalle ke dukaandaron se bolkar bhaav kariye, live boli lagaiye.',
-  manifest: '/manifest.json',
+  title: 'Sthamly - Generative Engine Optimization (GEO)',
+  description: 'जांचें कि क्या ChatGPT और Perplexity आपके ब्रांड को रेकमेंड करते हैं और 1-क्लिक में फिक्स करें।',
+  manifest: '/manifest.json', // आपका पुराना PWA मेनिफेस्टो लिंक
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Sthamly',
+    title: 'Sthamly AI',
   },
-}
+};
 
-// Viewport configuration
+// 📱 मोबाइल स्क्रीन और PWA व्यूपोर्ट कॉन्फ़िगरेशन
 export const viewport: Viewport = {
+  themeColor: '#EA580C', // आपकी ऑरेंज ब्रांड थीम
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,
-  themeColor: '#B5451B',
-}
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable} ${notoDevanagari.variable} ${plexMono.variable}`}>
-      {/* 
-        body: मोबाइल पर नॉर्मल रहेगा। लैपटॉप/कंप्यूटर (md:) होने पर ही फ्लेक्सबॉक्स एक्टिव होगा 
-        ताकि पूरा ऐप स्क्रीन के सेंटर में रहे और बैकग्राउंड कलर बदले।
-      */}
-      <body className="min-h-dvh bg-white dark:bg-stone-950 dark:text-stone-100 font-body md:bg-stone-100 md:dark:bg-stone-900 md:flex md:justify-center md:items-start">
-        <ThemeProvider>
-          <AuthProvider>
-            <LocationGate>
-              
-              {/* 
-                App Wrapper: मोबाइल पर w-full (100% फुल स्क्रीन चौड़ाई) रहेगा। 
-                केवल टैबलेट या कंप्यूटर स्क्रीन पर (md:) यह 'max-w-md' (448px) चौड़ाई का मोबाइल फ्रेम बनेगा, 
-                जिससे बड़ी स्क्रीन पर भी ऐप ब्लैंक या क्रैश नहीं होगा।
-              */}
-              <div className="w-full min-h-dvh bg-white dark:bg-stone-950 relative flex flex-col justify-between md:max-w-md md:mx-auto md:shadow-2xl">
-                
-                {/* ग्लोबल हेडर और कनेक्टिविटी अलर्ट्स */}
-                <GlobalHeader />
-                <ConnectivityToast />
-                
-                {/* मुख्य कंटेंट एरिया जो बची हुई जगह घेरेगा */}
-                <main className="flex-1 w-full overflow-y-auto no-scrollbar">
-                  {children}
-                </main>
-                
-                {/* फ्लोटिंग बटन्स, बॉटम नेविगेशन और PWA पुश इनिशियलाइज़र */}
-                <DynamicFab />
-                <BottomNav />
-                <AnalyticsConsent />
-                <PushInit />
-                
-              </div>
+    <html lang="hi">
+      <head>
+        {/* PWA के लिए iOS सपोर्ट मैटा टैग्स */}
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+      </head>
+      <body className={`${inter.className} bg-gray-50 antialiased`}>
+        
+        {/* मुख्य एप्लीकेशन व्यू */}
+        {children}
 
-            </LocationGate>
-          </AuthProvider>
-        </ThemeProvider>
+        {/* 💳 रेज़रपे चेकआउट स्क्रिप्ट - इसके बिना मोबाइल PWA पेमेंट गेटवे क्रैश हो जाएगा */}
+        <Script 
+          src="https://razorpay.com" 
+          strategy="lazyOnload" 
+        />
       </body>
     </html>
-  )
+  );
 }
