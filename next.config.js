@@ -48,6 +48,19 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        // Supabase Storage se saari images (products, comment-audio waghaira
+        // buckets) yahan se serve hoti hain — is pattern ke bina next/image
+        // silently fail hokar broken-icon + alt-text overlap dikhata hai
+        // (jaisa Home-feed thumbnails mein dikha tha).
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 }
 
 module.exports = withPWA(nextConfig)
