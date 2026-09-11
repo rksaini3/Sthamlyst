@@ -67,12 +67,7 @@ export default function SellPage() {
   const [price, setPrice] = useState('')
   const [category, setCategory] = useState(CATEGORIES[0])
 
-  const [sahayakRecording, setSahayakRecording] = useState(false)
-  const [sahayakLoading, setSahayakLoading] = useState(false)
-  const [sahayakError, setSahayakError] = useState('')
-  const sahayakRecorderRef = useRef<MediaRecorder | null>(null)
-  const sahayakChunksRef = useRef<Blob[]>([])
-
+  // ---- Ek hi recording — public voice-note bhi, Sahayak ka source bhi ----
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -80,6 +75,10 @@ export default function SellPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const [sahayakLoading, setSahayakLoading] = useState(false)
+  const [sahayakError, setSahayakError] = useState('')
+  const [sahayakFilled, setSahayakFilled] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -133,16 +132,22 @@ export default function SellPage() {
       const recorder = new MediaRecorder(stream)
       chunksRef.current = []
       setRecordSeconds(0)
+      setSahayakFilled(false)
+      setSahayakError('')
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         setAudioBlob(blob)
         setAudioUrl(URL.createObjectURL(blob))
         stream.getTracks().forEach((track) => track.stop())
         if (timerRef.current) clearInterval(timerRef.current)
+
+        // Yehi recording ab Sahayak ko bhi bhej do — seller ko dobara
+        // bolna nahi padega, ek hi recording se dono kaam ho jaate hain.
+        await sendToSahayak(blob)
       }
 
       recorder.start()
@@ -174,35 +179,8 @@ export default function SellPage() {
     setAudioUrl(null)
     setRecordSeconds(0)
     setVoiceProgress(null)
-  }
-
-  async function startSahayakRecording() {
+    setSahayakFilled(false)
     setSahayakError('')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
-      sahayakChunksRef.current = []
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) sahayakChunksRef.current.push(e.data)
-      }
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        const blob = new Blob(sahayakChunksRef.current, { type: 'audio/webm' })
-        await sendToSahayak(blob)
-      }
-
-      recorder.start()
-      sahayakRecorderRef.current = recorder
-      setSahayakRecording(true)
-    } catch {
-      setSahayakError('Microphone access nahi mil paaya.')
-    }
-  }
-
-  function stopSahayakRecording() {
-    sahayakRecorderRef.current?.stop()
-    setSahayakRecording(false)
   }
 
   async function sendToSahayak(blob: Blob) {
@@ -241,8 +219,9 @@ export default function SellPage() {
       if (data.description) setDescription(data.description)
       if (data.category) setCategory(data.category)
       if (data.price) setPrice(String(data.price))
+      setSahayakFilled(true)
     } catch (err: any) {
-      setSahayakError(err?.message || 'Sahayak abhi kaam nahi kar paaya, khud type kar lijiye.')
+      setSahayakError(err?.message || 'Sahayak abhi kaam nahi kar paaya — neeche khud type kar lijiye.')
     } finally {
       setSahayakLoading(false)
     }
@@ -348,7 +327,7 @@ export default function SellPage() {
   return (
     <div className="max-w-md mx-auto pb-24 px-4 pt-6">
       <h1 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-1">Naya Listing</h1>
-      <p className="text-xs text-stone-500 mb-5">Photo aur apni aawaz mein jaankari daalein</p>
+      <p className="text-xs text-stone-500 mb-5">Photo lijiye, phir bas ek baar boliye — baaki Sahayak sambhal lega</p>
 
       {!isOnline && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium rounded-xl px-3 py-2.5 mb-4">
@@ -392,29 +371,58 @@ export default function SellPage() {
       )}
       {!(photoFile && photoProgress !== null) && <div className="mb-4" />}
 
+      {/* ---- Ek hi Voice Note — public bhi, Sahayak-source bhi ---- */}
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
         Voice Note (15 sec) — zaroori hai
       </label>
-      <div className="border border-stone-200 dark:border-stone-700 rounded-xl p-4 mb-1.5 flex flex-col items-center gap-2">
+      <div className="border border-violet/30 bg-violet-light rounded-xl p-4 mb-1.5 flex flex-col items-center gap-2">
         {!audioUrl ? (
           <>
             <button
               onClick={recording ? stopRecording : startRecording}
               disabled={submitting}
-              className={`w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-40 ${recording ? 'bg-red-500' : 'bg-mehendi'}`}
+              className={`w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-40 ${recording ? 'bg-red-500' : 'bg-violet'}`}
             >
               {recording ? <Square size={20} /> : <Mic size={22} />}
             </button>
             {recording && <p className="text-xs text-red-500 animate-pulse">{recordSeconds}s / 15s</p>}
-            {!recording && <p className="text-xs text-stone-400">Apni aawaz mein saamaan ke baare mein batayein</p>}
+            {!recording && (
+              <p className="text-xs text-stone-500 text-center">
+                Boliye: &quot;ये मिट्टी का दिया है, चार का सेट, डेढ़ सौ रुपये&quot;
+                <br />
+                <span className="text-[10px] text-violet font-semibold flex items-center justify-center gap-1 mt-1">
+                  <Sparkles size={11} /> Sahayak isi se Title/Price bhi bhar dega
+                </span>
+              </p>
+            )}
           </>
         ) : (
-          <div className="w-full flex items-center gap-2">
-            <audio src={audioUrl} controls className="flex-1" />
-            {!submitting && (
-              <button onClick={reRecordVoice} className="text-stone-400" aria-label="Dobara record karein">
-                <RotateCcw size={18} />
-              </button>
+          <div className="w-full">
+            <div className="flex items-center gap-2">
+              <audio src={audioUrl} controls className="flex-1" />
+              {!submitting && (
+                <button onClick={reRecordVoice} className="text-stone-400 flex-shrink-0" aria-label="Dobara record karein">
+                  <RotateCcw size={18} />
+                </button>
+              )}
+            </div>
+            {sahayakLoading && (
+              <p className="text-xs text-violet font-semibold flex items-center gap-1.5 mt-2">
+                <Loader2 size={13} className="animate-spin" /> Sahayak sun raha hai, form bhar raha hai…
+              </p>
+            )}
+            {sahayakFilled && !sahayakLoading && (
+              <p className="text-xs text-mehendi font-semibold mt-2">✓ Sahayak ne form bhar diya — neeche check kar lijiye</p>
+            )}
+            {sahayakError && (
+              <div className="mt-2">
+                <p className="text-xs text-red-600">{sahayakError}</p>
+                {sahayakError.includes('Sthamly Pro') && (
+                  <Link href="/seller-pro" className="text-xs font-bold text-violet underline">
+                    Sthamly Pro dekhein →
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -428,44 +436,6 @@ export default function SellPage() {
         </div>
       )}
       {voiceProgress === null && <div className="mb-4" />}
-
-      <div className="mb-4 border border-violet/30 bg-violet-light rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={15} className="text-violet" />
-          <p className="text-xs font-bold text-violet">Sahayak se boliye — form khud bhar jayega</p>
-        </div>
-        <button
-          onClick={sahayakRecording ? stopSahayakRecording : startSahayakRecording}
-          disabled={sahayakLoading}
-          className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl disabled:opacity-50 ${
-            sahayakRecording ? 'bg-red-500 text-white' : 'bg-violet text-white'
-          }`}
-        >
-          {sahayakLoading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" /> Sun raha hoon, likh raha hoon…
-            </>
-          ) : sahayakRecording ? (
-            <>
-              <Square size={14} /> Ruko, ho gaya
-            </>
-          ) : (
-            <>
-              <Mic size={16} /> Boliye: &quot;ये मिट्टी का दिया है, चार का सेट, डेढ़ सौ रुपये&quot;
-            </>
-          )}
-        </button>
-        {sahayakError && (
-          <div className="mt-1.5">
-            <p className="text-xs text-red-600">{sahayakError}</p>
-            {sahayakError.includes('Sthamly Pro') && (
-              <Link href="/seller-pro" className="text-xs font-bold text-violet underline">
-                Sthamly Pro dekhein →
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
 
       <label className="block text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1.5">Title</label>
       <input
