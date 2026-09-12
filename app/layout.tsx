@@ -6,7 +6,7 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import SwUpdateWatcher from '@/components/SwUpdateWatcher';
 import ConnectivityToast from '@/components/ConnectivityToast';
 import AnalyticsConsent from '@/components/AnalyticsConsent';
-import PushInit from '@/components/PushInit';
+import { PushInit } from '@/components/PushInit';
 import GlobalHeader from '@/components/GlobalHeader';
 import BottomNav from '@/components/BottomNav';
 
