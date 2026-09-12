@@ -1,59 +1,128 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
-// Verifies the HMAC-SHA256 signature Razorpay sends back after a
-// successful checkout, so a payment can never be faked from the client.
-// See: https://razorpay.com/docs/payments/server-integration/nodejs/payment-gateway/build-integration/#3-verify-payment-signature
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: NextRequest) {
   try {
     const {
-      sthamlyOrderIds,
+      sthamlyOrderIds, // [0] = optimizationId
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-    } = await req.json()
+    } = await req.json();
 
-    if (!Array.isArray(sthamlyOrderIds) || sthamlyOrderIds.length === 0) {
-      return NextResponse.json({ error: 'sthamlyOrderIds (array) is required' }, { status: 400 })
-    }
+    const optimizationId = sthamlyOrderIds?.[0];
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET
-    if (!keySecret) {
-      return NextResponse.json({ error: 'Payments not configured on the server.' }, { status: 500 })
-    }
-
+    // 1. Verify Razorpay signature
     const expectedSignature = crypto
-      .createHmac('sha256', keySecret)
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex')
+      .digest('hex');
 
     if (expectedSignature !== razorpay_signature) {
-      return NextResponse.json({ error: 'Payment signature mismatch — possible tampering.' }, { status: 400 })
+      return NextResponse.json({ error: 'Signature mismatch' }, { status: 400 });
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // 2. Mark optimization as paid
+    const { data: optimization, error } = await supabaseAdmin
+      .from('optimizations')
+      .update({ payment_status: 'paid' })
+      .eq('id', optimizationId)
+      .select()
+      .single();
 
-    for (const orderId of sthamlyOrderIds) {
-      const { error } = await supabase.rpc('confirm_order_payment', {
-        p_order_id: orderId,
-        p_razorpay_order_id: razorpay_order_id,
-        p_razorpay_payment_id: razorpay_payment_id,
-        p_razorpay_signature: razorpay_signature,
-      })
-      if (error) {
-        console.error(`confirm_order_payment error for ${orderId}:`, error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
-      }
+    if (error || !optimization) {
+      return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ verified: true })
-  } catch (e: any) {
-    console.error('verify-payment error:', e)
-    return NextResponse.json({ error: e.message || 'Verification failed' }, { status: 500 })
+    // 3. Push the actual fix to WordPress
+    const pushResult = await pushFixToWordPress(optimization);
+    if (!pushResult.ok) {
+      await supabaseAdmin
+        .from('optimizations')
+        .update({ status: 'failed' })
+        .eq('id', optimizationId);
+      return NextResponse.json({ error: pushResult.error }, { status: 500 });
+    }
+
+    await supabaseAdmin
+      .from('optimizations')
+      .update({ status: 'applied', applied_at: new Date().toISOString() })
+      .eq('id', optimizationId);
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('verify-payment error:', err);
+    return NextResponse.json(
+      { error: err.message || 'Payment verify nahi ho paya.' },
+      { status: 500 }
+    );
+  }
+}
+
+async function pushFixToWordPress(optimization: any) {
+  if (!optimization.wordpress_connection_id) {
+    return { ok: false, error: 'No WordPress site connected for this account' };
+  }
+
+  const { data: wpConnection } = await supabaseAdmin
+    .from('wordpress_connections')
+    .select('*')
+    .eq('id', optimization.wordpress_connection_id)
+    .single();
+
+  if (!wpConnection) {
+    return { ok: false, error: 'WordPress connection not found' };
+  }
+
+  const payload = buildFixPayload(optimization.fix_type);
+  const auth = Buffer.from(
+    `${wpConnection.wp_username}:${wpConnection.wp_app_password}`
+  ).toString('base64');
+
+  const wpRes = await fetch(`${wpConnection.site_url}/wp-json/wp/v2/pages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!wpRes.ok) {
+    const errText = await wpRes.text();
+    return { ok: false, error: `WordPress update failed: ${errText}` };
+  }
+
+  await supabaseAdmin
+    .from('wordpress_connections')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', wpConnection.id);
+
+  return { ok: true };
+}
+
+function buildFixPayload(fixType: string) {
+  switch (fixType) {
+    case 'schema_markup':
+      return {
+        title: 'AI Visibility Schema Update',
+        content:
+          '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization"}</script>',
+        status: 'publish',
+      };
+    case 'faq_section':
+      return {
+        title: 'FAQ',
+        content: '<h2>Frequently Asked Questions</h2>',
+        status: 'publish',
+      };
+    default:
+      return { title: 'Update', content: '', status: 'draft' };
   }
 }
