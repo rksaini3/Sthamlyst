@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
+  }
+  return createClient(url, key);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
+
     const {
       sthamlyOrderIds,
       razorpay_order_id,
@@ -18,8 +24,15 @@ export async function POST(req: NextRequest) {
 
     const optimizationId = sthamlyOrderIds?.[0];
 
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keySecret) {
+      throw new Error('RAZORPAY_KEY_SECRET missing (check Vercel Environment Variables)');
+    }
+
+    // Signature verify — yahi step confirm karta hai ki payment genuinely
+    // Razorpay se hui hai, koi fake request nahi hai
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+      .createHmac('sha256', keySecret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
@@ -38,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    const pushResult = await pushFixToWordPress(optimization);
+    const pushResult = await pushFixToWordPress(supabaseAdmin, optimization);
     if (!pushResult.ok) {
       await supabaseAdmin
         .from('optimizations')
@@ -62,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function pushFixToWordPress(optimization: any) {
+async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
   if (!optimization.wordpress_connection_id) {
     return { ok: false, error: 'No WordPress site connected for this account' };
   }
