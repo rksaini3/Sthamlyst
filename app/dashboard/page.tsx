@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
 import type { AuditReport } from '@/types';
 
-export default function DashboardPage() {
+// useSearchParams() ko Suspense boundary ke andar hona zaroori hai,
+// warna Next.js build/static-export ke waqt error deta hai. Isliye
+// asli logic ek alag inner component mein hai, aur neeche wala
+// default export usko <Suspense> se wrap karke render karta hai.
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const auditId = searchParams.get('audit');
 
   const [report, setReport] = useState<AuditReport | null>(null);
-  const [optimizationId, setOptimizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,30 +52,6 @@ export default function DashboardPage() {
       .select('*')
       .eq('audit_id', id);
 
-    // Get the WordPress connection for this user, if any, to attach to the optimization
-    const { data: userData } = await supabase.auth.getUser();
-    const { data: wpConn } = await supabase
-      .from('wordpress_connections')
-      .select('id')
-      .eq('user_id', userData.user?.id)
-      .limit(1)
-      .single();
-
-    // Create a pending optimization row up front so FixButton has an id to pay against
-    const { data: optimization } = await supabase
-      .from('optimizations')
-      .insert({
-        audit_id: id,
-        wordpress_connection_id: wpConn?.id ?? null,
-        fix_type: 'schema_markup',
-        status: 'pending',
-        payment_status: 'unpaid',
-      })
-      .select()
-      .single();
-
-    setOptimizationId(optimization?.id ?? null);
-
     setReport({
       ...audit,
       ai_mentions: mentions ?? [],
@@ -106,14 +85,16 @@ export default function DashboardPage() {
 
       <section className="mt-8">
         <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-        {optimizationId ? (
-          <FixButton auditId={report.id} optimizationId={optimizationId} />
-        ) : (
-          <p className="text-sm text-gray-500">
-            Connect your WordPress site in Optimizer first to enable auto-fix.
-          </p>
-        )}
+        <FixButton auditId={report.id} />
       </section>
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className="p-6">Loading…</main>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
