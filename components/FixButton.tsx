@@ -1,38 +1,32 @@
 'use client';
 
 import { useState } from 'react';
-import { openRazorpayCheckout } from '@/lib/razorpay-client';
+import { startCheckout } from '@/lib/razorpay-client';
 
 interface Props {
   auditId: string;
+  optimizationId: string;
 }
 
-export default function FixButton({ auditId }: Props) {
+export default function FixButton({ auditId, optimizationId }: Props) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   async function handleFixNow() {
     setLoading(true);
     setMessage(null);
-    try {
-      await openRazorpayCheckout({
-        amount: 49900,
-        description: 'AI Visibility Fix',
-        onSuccess: async () => {
-          const res = await fetch('/api/optimize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ auditId, fixType: 'schema_markup' }),
-          });
-          if (!res.ok) throw new Error('Fix could not be applied');
-          setMessage('✅ Fix applied to your website!');
-        },
-      });
-    } catch (err: any) {
-      setMessage(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
+
+    await startCheckout({
+      sthamlyOrderIds: [optimizationId], // reused field name — here it's the optimization ID, not a marketplace order ID
+      onSuccess: () => {
+        setLoading(false);
+        setMessage('✅ Payment done — fix is being applied to your website!');
+      },
+      onFailure: (msg) => {
+        setLoading(false);
+        setMessage(msg);
+      },
+    });
   }
 
   return (
