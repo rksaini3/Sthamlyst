@@ -1,22 +1,19 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
 import type { AuditReport } from '@/types';
 
-// useSearchParams() ko Suspense boundary ke andar hona zaroori hai,
-// warna Next.js build/static-export ke waqt error deta hai. Isliye
-// asli logic ek alag inner component mein hai, aur neeche wala
-// default export usko <Suspense> se wrap karke render karta hai.
-function DashboardContent() {
+export default function DashboardPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const auditId = searchParams.get('audit');
 
   const [report, setReport] = useState<AuditReport | null>(null);
+  const [optimizationId, setOptimizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +49,28 @@ function DashboardContent() {
       .select('*')
       .eq('audit_id', id);
 
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: wpConn } = await supabase
+      .from('wordpress_connections')
+      .select('id')
+      .eq('user_id', userData.user?.id)
+      .limit(1)
+      .single();
+
+    const { data: optimization } = await supabase
+      .from('optimizations')
+      .insert({
+        audit_id: id,
+        wordpress_connection_id: wpConn?.id ?? null,
+        fix_type: 'schema_markup',
+        status: 'pending',
+        payment_status: 'unpaid',
+      })
+      .select()
+      .single();
+
+    setOptimizationId(optimization?.id ?? null);
+
     setReport({
       ...audit,
       ai_mentions: mentions ?? [],
@@ -85,16 +104,14 @@ function DashboardContent() {
 
       <section className="mt-8">
         <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-        <FixButton auditId={report.id} />
+        {optimizationId ? (
+          <FixButton auditId={report.id} optimizationId={optimizationId} />
+        ) : (
+          <p className="text-sm text-gray-500">
+            Connect your WordPress site in Optimizer first to enable auto-fix.
+          </p>
+        )}
       </section>
     </main>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<main className="p-6">Loading…</main>}>
-      <DashboardContent />
-    </Suspense>
   );
 }
