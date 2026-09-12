@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import EditProfileSheet from '@/components/EditProfileSheet';
 import type { Profile } from '@/types';
 
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [showEditSheet, setShowEditSheet] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -37,7 +39,15 @@ export default function ProfilePage() {
 
   return (
     <main className="px-6 py-10 max-w-md mx-auto pb-24">
-      <h1 className="text-2xl font-bold mb-1">{profile.full_name}</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold">{profile.full_name}</h1>
+        <button
+          onClick={() => setShowEditSheet(true)}
+          className="text-sm border rounded-lg px-3 py-1.5 font-medium"
+        >
+          Edit Profile
+        </button>
+      </div>
       <p className="text-gray-500 mb-6">{profile.brand_name}</p>
 
       <div className="border rounded-lg p-4 mb-4">
@@ -61,6 +71,14 @@ export default function ProfilePage() {
       >
         Log out
       </button>
+
+      {showEditSheet && (
+        <EditProfileSheet
+          profile={profile}
+          onClose={() => setShowEditSheet(false)}
+          onSaved={(updated) => setProfile(updated)}
+        />
+      )}
     </main>
   );
 }
