@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import EditProfileSheet from '@/components/EditProfileSheet';
+import SubscribeButton from '@/components/SubscribeButton';
 import type { Profile, Audit } from '@/types';
 
 export default function ProfilePage() {
@@ -66,11 +67,7 @@ export default function ProfilePage() {
       <div className="border rounded-lg p-4 mb-6">
         <p className="text-sm text-gray-500">Plan</p>
         <p className="capitalize font-semibold">{profile.plan}</p>
-        {profile.plan === 'free' && (
-          <button className="mt-2 bg-orange-700 text-white rounded-lg px-4 py-2 text-sm">
-            Upgrade to Pro
-          </button>
-        )}
+        {profile.plan === 'free' && <SubscribeButton />}
       </div>
 
       {audits.length > 0 && (
@@ -84,7 +81,10 @@ export default function ProfilePage() {
             >
               <p className="font-medium">{a.brand_name}</p>
               <p className="text-sm text-gray-500">
-                {a.website_url} · Score: {a.visibility_score ?? '—'}
+                {a.target_city}
+                {a.has_website ? ` · Website Score: ${a.visibility_score ?? '—'}` : ''}
+                {' · Local Score: '}
+                {a.local_visibility_score ?? '—'}
               </p>
             </button>
           ))}
