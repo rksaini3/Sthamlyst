@@ -2,82 +2,81 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
-import EditProfileSheet from '@/components/EditProfileSheet';
-import type { Profile } from '@/types';
+import UrlInputForm from '@/components/UrlInputForm';
+import { addAuditToHistory, getAuditHistory, type AuditHistoryEntry } from '@/lib/auditHistory';
 
-export default function ProfilePage() {
+export default function HomePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [showEditSheet, setShowEditSheet] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<AuditHistoryEntry[]>([]);
 
   useEffect(() => {
-    loadProfile();
+    setHistory(getAuditHistory());
   }, []);
 
-  async function loadProfile() {
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
-    if (!userId) {
-      router.push('/login');
-      return;
+  async function handleStartAudit(websiteUrl: string, brandName: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteUrl, brandName }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Audit could not be started');
+      }
+
+      const { auditId } = await res.json();
+
+      addAuditToHistory({
+        auditId,
+        brandName,
+        websiteUrl,
+        createdAt: new Date().toISOString(),
+      });
+
+      router.push(`/dashboard?audit=${auditId}`);
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
     }
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    setProfile(data);
   }
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push('/login');
-  }
-
-  if (!profile) return <main className="p-6">Loading…</main>;
 
   return (
-    <main className="px-6 py-10 max-w-md mx-auto pb-24">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-bold">{profile.full_name}</h1>
-        <button
-          onClick={() => setShowEditSheet(true)}
-          className="text-sm border rounded-lg px-3 py-1.5 font-medium"
-        >
-          Edit Profile
-        </button>
-      </div>
-      <p className="text-gray-500 mb-6">{profile.brand_name}</p>
+    <main className="min-h-screen flex flex-col items-center px-6 py-16 bg-white">
+      <h1 className="text-3xl font-bold text-center mb-3">
+        Is your brand visible in AI search?
+      </h1>
+      <p className="text-gray-600 text-center max-w-md mb-8">
+        Check how ChatGPT, Perplexity, and Google AI Overviews talk about your
+        brand — free.
+      </p>
 
-      <div className="border rounded-lg p-4 mb-4">
-        <p className="text-sm text-gray-500">Website</p>
-        <p>{profile.website_url}</p>
-      </div>
+      <UrlInputForm onSubmit={handleStartAudit} loading={loading} />
 
-      <div className="border rounded-lg p-4 mb-6">
-        <p className="text-sm text-gray-500">Plan</p>
-        <p className="capitalize font-semibold">{profile.plan}</p>
-        {profile.plan === 'free' && (
-          <button className="mt-2 bg-orange-700 text-white rounded-lg px-4 py-2 text-sm">
-            Upgrade to Pro
-          </button>
-        )}
-      </div>
+      {error && <p className="text-red-600 mt-4 text-sm">{error}</p>}
 
-      <button
-        onClick={handleLogout}
-        className="w-full border border-red-500 text-red-600 rounded-lg py-3 font-semibold"
-      >
-        Log out
-      </button>
-
-      {showEditSheet && (
-        <EditProfileSheet
-          profile={profile}
-          onClose={() => setShowEditSheet(false)}
-          onSaved={(updated) => setProfile(updated)}
-        />
+      {history.length > 0 && (
+        <section className="w-full max-w-md mt-12">
+          <h2 className="font-semibold text-lg mb-3">Recent Audits</h2>
+          <div className="space-y-2">
+            {history.map((entry) => (
+              <button
+                key={entry.auditId}
+                onClick={() => router.push(`/dashboard?audit=${entry.auditId}`)}
+                className="w-full text-left border rounded-lg px-4 py-3 hover:bg-gray-50"
+              >
+                <p className="font-medium">{entry.brandName}</p>
+                <p className="text-sm text-gray-500">{entry.websiteUrl}</p>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );
