@@ -1,13 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy init: client sirf request ke andar banega, module load time pe nahi.
+// Isse agar env var kabhi missing ho, to sirf us request pe 500 error aayega,
+// pura Vercel build crash nahi hoga.
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
+  }
+  return createClient(url, key);
+}
+
+// Ek hi OpenRouter endpoint se OpenAI aur Perplexity dono models call honge.
+// Sirf OPENROUTER_API_KEY chahiye — alag-alag provider keys ki zaroorat nahi.
+async function callOpenRouter(model: string, prompt: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY missing (check Vercel Environment Variables)');
+  }
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      // OpenRouter ye headers optional recommend karta hai analytics/rate-limit ke liye
+      'HTTP-Referer': 'https://sthamly.com',
+      'X-Title': 'Sthamly AI Visibility Audit',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 200,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter (${model}) failed: ${errText}`);
+  }
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  // Perplexity (sonar) models OpenRouter response mein citations bhi dete hain
+  const citations: string[] = data?.citations ?? [];
+  return { text, citations };
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { websiteUrl, brandName, userId } = await req.json();
 
     if (!websiteUrl || !brandName) {
@@ -88,26 +132,10 @@ export async function POST(req: NextRequest) {
 }
 
 async function checkOpenAiMention(brandName: string, websiteUrl: string) {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: `Do you have any knowledge of a brand called "${brandName}" (website: ${websiteUrl})? Answer with YES or NO, then one sentence describing sentiment (positive/neutral/negative/unknown).`,
-        },
-      ],
-      max_tokens: 100,
-    }),
-  });
+  const prompt = `Do you have any knowledge of a brand called "${brandName}" (website: ${websiteUrl})? Answer with YES or NO, then one sentence describing sentiment (positive/neutral/negative/unknown).`;
 
-  const data = await res.json();
-  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  const { text } = await callOpenRouter('openai/gpt-4o-mini', prompt);
+
   const mentioned = /\byes\b/i.test(text);
   let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
   if (/positive/i.test(text)) sentiment = 'positive';
@@ -118,26 +146,10 @@ async function checkOpenAiMention(brandName: string, websiteUrl: string) {
 }
 
 async function checkPerplexityMention(brandName: string, websiteUrl: string) {
-  const res = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'sonar',
-      messages: [
-        {
-          role: 'user',
-          content: `What do you find online about the brand "${brandName}" (${websiteUrl})? Cite your source URL if you have one.`,
-        },
-      ],
-    }),
-  });
+  const prompt = `What do you find online about the brand "${brandName}" (${websiteUrl})? Cite your source URL if you have one.`;
 
-  const data = await res.json();
-  const text: string = data?.choices?.[0]?.message?.content ?? '';
-  const citations: string[] = data?.citations ?? [];
+  const { text, citations } = await callOpenRouter('perplexity/sonar', prompt);
+
   const mentioned = text.length > 0 && !/no information|not found/i.test(text);
 
   return {
