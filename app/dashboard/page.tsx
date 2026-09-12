@@ -24,6 +24,7 @@ function DashboardContent() {
   const [optimizationId, setOptimizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'maps' | 'website'>('maps');
 
   useEffect(() => {
     if (!auditId) {
@@ -57,27 +58,29 @@ function DashboardContent() {
       .select('*')
       .eq('audit_id', id);
 
-    const { data: userData } = await supabase.auth.getUser();
-    const { data: wpConn } = await supabase
-      .from('wordpress_connections')
-      .select('id')
-      .eq('user_id', userData.user?.id)
-      .limit(1)
-      .single();
+    if (audit.has_website) {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: wpConn } = await supabase
+        .from('wordpress_connections')
+        .select('id')
+        .eq('user_id', userData.user?.id ?? '')
+        .limit(1)
+        .maybeSingle();
 
-    const { data: optimization } = await supabase
-      .from('optimizations')
-      .insert({
-        audit_id: id,
-        wordpress_connection_id: wpConn?.id ?? null,
-        fix_type: 'schema_markup',
-        status: 'pending',
-        payment_status: 'unpaid',
-      })
-      .select()
-      .single();
+      const { data: optimization } = await supabase
+        .from('optimizations')
+        .insert({
+          audit_id: id,
+          wordpress_connection_id: wpConn?.id ?? null,
+          fix_type: 'schema_markup',
+          status: 'pending',
+          payment_status: 'unpaid',
+        })
+        .select()
+        .single();
 
-    setOptimizationId(optimization?.id ?? null);
+      setOptimizationId(optimization?.id ?? null);
+    }
 
     setReport({
       ...audit,
@@ -90,82 +93,134 @@ function DashboardContent() {
   if (loading) return <main className="p-6">Loading your report…</main>;
   if (error || !report) return <main className="p-6">{error}</main>;
 
+  const localMentions = report.ai_mentions.filter((m) => m.is_local);
+  const websiteMentions = report.ai_mentions.filter((m) => !m.is_local);
+
   return (
-    <main className="min-h-screen px-6 py-10 max-w-2xl mx-auto">
+    <main className="min-h-screen px-6 py-10 max-w-2xl mx-auto pb-24">
       <h1 className="text-2xl font-bold mb-1">{report.brand_name}</h1>
-      <p className="text-gray-500 mb-6">{report.website_url}</p>
+      <p className="text-gray-500 mb-6">{report.target_city}</p>
 
-      <AuditGraph score={report.visibility_score ?? 0} />
+      {report.has_website && (
+        <div className="flex border-b mb-6">
+          <button
+            onClick={() => setActiveTab('maps')}
+            className={`flex-1 py-2 text-sm font-semibold ${
+              activeTab === 'maps' ? 'border-b-2 border-orange-700 text-orange-700' : 'text-gray-500'
+            }`}
+          >
+            📍 Maps Visibility
+          </button>
+          <button
+            onClick={() => setActiveTab('website')}
+            className={`flex-1 py-2 text-sm font-semibold ${
+              activeTab === 'website' ? 'border-b-2 border-orange-700 text-orange-700' : 'text-gray-500'
+            }`}
+          >
+            🌐 Website AI Score
+          </button>
+        </div>
+      )}
 
-      <section className="mt-8 space-y-3">
-        <h2 className="font-semibold text-lg">AI Mentions</h2>
-        {report.ai_mentions.map((m) => (
-          <div key={m.id} className="border rounded-lg p-4">
-            <p className="font-medium capitalize">{m.source}</p>
-            <p className="text-sm text-gray-600">
-              {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
-              {m.sentiment ? ` · ${m.sentiment}` : ''}
-            </p>
-            {m.citation_url && (
-              <a
-                href={m.citation_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 underline break-all mt-1 inline-block"
-              >
-                {m.citation_url}
-              </a>
-            )}
-            {!m.citation_url && m.mentioned && (
-              <p className="text-xs text-gray-400 mt-1">No direct source link returned</p>
-            )}
+      {(!report.has_website || activeTab === 'maps') && (
+        <section>
+          <AuditGraph score={report.local_visibility_score ?? 0} />
+          <p className="text-center text-gray-600 mt-3 mb-6">Local AI & Maps Pack Score</p>
+
+          <div className="space-y-3 mb-6">
+            {localMentions.map((m) => (
+              <div key={m.id} className="border rounded-lg p-4">
+                <p className="font-medium capitalize">{m.source}</p>
+                <p className="text-sm text-gray-600">
+                  {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
+                  {m.sentiment ? ` · ${m.sentiment}` : ''}
+                </p>
+              </div>
+            ))}
           </div>
-        ))}
-      </section>
 
-      {report.google_results.length > 0 && (
-        <section className="mt-8 space-y-3">
-          <h2 className="font-semibold text-lg">Google AI Overview</h2>
-          {report.google_results.map((g) => (
-            <div key={g.id} className="border rounded-lg p-4">
-              <p className="text-sm text-gray-600">
-                Query: <span className="font-medium">{g.query}</span>
-              </p>
-              <p className="text-sm text-gray-600">
-                {g.appears_in_overview ? '✅ Appears in AI Overview' : '❌ Not in AI Overview'}
-                {g.ranked_position ? ` · Rank #${g.ranked_position}` : ''}
-              </p>
-              {g.competitor_urls && g.competitor_urls.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs text-gray-400 mb-1">Top results:</p>
-                  {g.competitor_urls.map((url, i) => (
-                    <a
-                      key={i}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 underline break-all block"
-                    >
-                      {url}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          <button className="w-full bg-orange-700 text-white rounded-lg py-3 font-semibold">
+            ⚡ Auto-Fix Google Maps Listing — ₹499
+          </button>
         </section>
       )}
 
-      <section className="mt-8">
-        <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-        {optimizationId ? (
-          <FixButton auditId={report.id} optimizationId={optimizationId} />
-        ) : (
-          <p className="text-sm text-gray-500">
-            Connect your WordPress site in Optimizer first to enable auto-fix.
-          </p>
-        )}
-      </section>
+      {report.has_website && activeTab === 'website' && (
+        <section>
+          <AuditGraph score={report.visibility_score ?? 0} />
+          <p className="text-center text-gray-600 mt-3 mb-6">Website AI Visibility Score</p>
+
+          <div className="space-y-3 mb-6">
+            {websiteMentions.map((m) => (
+              <div key={m.id} className="border rounded-lg p-4">
+                <p className="font-medium capitalize">{m.source}</p>
+                <p className="text-sm text-gray-600">
+                  {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
+                  {m.sentiment ? ` · ${m.sentiment}` : ''}
+                </p>
+                {m.citation_url ? (
+                  <a
+                    href={m.citation_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 underline break-all mt-1 inline-block"
+                  >
+                    {m.citation_url}
+                  </a>
+                ) : (
+                  m.mentioned && (
+                    <p className="text-xs text-gray-400 mt-1">No direct source link returned</p>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+
+          {report.google_results.length > 0 && (
+            <section className="mb-6 space-y-3">
+              <h2 className="font-semibold text-lg">Google AI Overview</h2>
+              {report.google_results.map((g) => (
+                <div key={g.id} className="border rounded-lg p-4">
+                  <p className="text-sm text-gray-600">
+                    Query: <span className="font-medium">{g.query}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {g.appears_in_overview ? '✅ Appears in AI Overview' : '❌ Not in AI Overview'}
+                    {g.ranked_position ? ` · Rank #${g.ranked_position}` : ''}
+                  </p>
+                  {g.competitor_urls && g.competitor_urls.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400 mb-1">Top results:</p>
+                      {g.competitor_urls.map((url, i) => (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 underline break-all block"
+                        >
+                          {url}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
+
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
+            {optimizationId ? (
+              <FixButton auditId={report.id} optimizationId={optimizationId} />
+            ) : (
+              <p className="text-sm text-gray-500">
+                Connect your WordPress site in Optimizer first to enable auto-fix.
+              </p>
+            )}
+          </section>
+        </section>
+      )}
     </main>
   );
 }
