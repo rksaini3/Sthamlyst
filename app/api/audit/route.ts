@@ -1,198 +1,170 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Lazy init: client sirf request ke andar banega, module load time pe nahi.
-// Isse agar env var kabhi missing ho, to sirf us request pe 500 error aayega,
-// pura Vercel build crash nahi hoga.
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
-  }
+  if (!url || !key) throw new Error('Supabase env vars missing');
   return createClient(url, key);
 }
 
-// Ek hi OpenRouter endpoint se OpenAI aur Perplexity dono models call honge.
-// Sirf OPENROUTER_API_KEY chahiye — alag-alag provider keys ki zaroorat nahi.
-async function callOpenRouter(model: string, prompt: string) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY missing (check Vercel Environment Variables)');
-  }
-
+async function askOpenRouter(model: string, prompt: string) {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      // OpenRouter ye headers optional recommend karta hai analytics/rate-limit ke liye
-      'HTTP-Referer': 'https://sthamly.com',
-      'X-Title': 'Sthamly AI Visibility Audit',
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
     },
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 200,
     }),
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`OpenRouter (${model}) failed: ${errText}`);
-  }
-
   const data = await res.json();
-  const text: string = data?.choices?.[0]?.message?.content ?? '';
-  // Perplexity (sonar) models OpenRouter response mein citations bhi dete hain
-  const citations: string[] = data?.citations ?? [];
-  return { text, citations };
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
+function parseMentionResponse(text: string) {
+  const mentioned = /MENTIONED:\s*yes/i.test(text);
+  const sentimentMatch = text.match(/SENTIMENT:\s*(positive|neutral|negative)/i);
+  const sentiment = sentimentMatch ? sentimentMatch[1].toLowerCase() : 'neutral';
+  const citationMatch = text.match(/CITATION_URL:\s*(\S+)/i);
+  return {
+    mentioned,
+    sentiment,
+    citation_url: citationMatch ? citationMatch[1] : null,
+  };
+}
+
+const LOCAL_MODELS = [
+  { id: 'google/gemini-2.5-pro', source: 'gemini' },
+  { id: 'openai/gpt-4o-mini', source: 'openai' },
+];
+
+const GENERAL_MODELS = [
+  { id: 'openai/gpt-4o-mini', source: 'openai' },
+  { id: 'perplexity/sonar', source: 'perplexity' },
+];
+
+function buildLocalPrompt(brandName: string, city: string) {
+  return `You are simulating a local search assistant. If someone in ${city} searched for a business like "${brandName}" or a relevant local service category near them, would "${brandName}" specifically be known or mentioned? Reply in this exact format:
+MENTIONED: yes/no
+SENTIMENT: positive/neutral/negative
+Reason: one line`;
+}
+
+function buildGeneralPrompt(brandName: string) {
+  return `Do you know of a brand/company called "${brandName}"? If someone asked about companies or services in its space, would you mention "${brandName}"? Reply in this exact format:
+MENTIONED: yes/no
+SENTIMENT: positive/neutral/negative
+CITATION_URL: url if you have a specific source, else none
+Reason: one line`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-    const { websiteUrl, brandName, userId } = await req.json();
-
-    if (!websiteUrl || !brandName) {
-      return NextResponse.json(
-        { error: 'websiteUrl and brandName are required' },
-        { status: 400 }
-      );
+    const { brandName, city, websiteUrl, userId } = await req.json();
+    if (!brandName || !city) {
+      return NextResponse.json({ error: 'brandName and city are required' }, { status: 400 });
     }
+    const hasWebsite = !!websiteUrl && websiteUrl.trim().length > 0;
+    const supabase = getSupabaseAdmin();
 
-    const { data: audit, error: insertErr } = await supabaseAdmin
+    const { data: audit, error: insertError } = await supabase
       .from('audits')
       .insert({
-        user_id: userId ?? null,
-        website_url: websiteUrl,
+        user_id: userId || null,
         brand_name: brandName,
-        status: 'running',
+        website_url: hasWebsite ? websiteUrl : null,
+        target_city: city,
+        has_website: hasWebsite,
+        status: 'processing',
       })
       .select()
       .single();
 
-    if (insertErr || !audit) {
-      throw insertErr || new Error('Could not create audit row');
+    if (insertError || !audit) {
+      return NextResponse.json({ error: insertError?.message || 'Could not create audit' }, { status: 500 });
     }
 
-    const openaiMention = await checkOpenAiMention(brandName, websiteUrl);
-    const perplexityMention = await checkPerplexityMention(brandName, websiteUrl);
-    const googleResult = await checkGoogleAiOverview(brandName);
+    // 1. Local visibility check — always runs
+    const localResults = await Promise.all(
+      LOCAL_MODELS.map(async (m) => {
+        const text = await askOpenRouter(m.id, buildLocalPrompt(brandName, city));
+        return { ...parseMentionResponse(text), source: m.source, is_local: true };
+      })
+    );
 
-    await supabaseAdmin.from('ai_mentions').insert([
-      {
-        audit_id: audit.id,
-        source: 'openai',
-        mentioned: openaiMention.mentioned,
-        sentiment: openaiMention.sentiment,
-        raw_response: openaiMention.raw,
-      },
-      {
-        audit_id: audit.id,
-        source: 'perplexity',
-        mentioned: perplexityMention.mentioned,
-        sentiment: perplexityMention.sentiment,
-        citation_url: perplexityMention.citationUrl,
-        raw_response: perplexityMention.raw,
-      },
-    ]);
+    const localMentionCount = localResults.filter((r) => r.mentioned).length;
+    const localScore = Math.round((localMentionCount / localResults.length) * 100);
 
-    await supabaseAdmin.from('google_ai_overview_results').insert({
-      audit_id: audit.id,
-      query: `${brandName} reviews`,
-      appears_in_overview: googleResult.appearsInOverview,
-      ranked_position: googleResult.position,
-      competitor_urls: googleResult.competitorUrls,
-    });
+    // 2. General/website visibility check — only if website provided
+    let generalResults: any[] = [];
+    let websiteScore: number | null = null;
 
-    const score = computeVisibilityScore({
-      openaiMentioned: openaiMention.mentioned,
-      perplexityMentioned: perplexityMention.mentioned,
-      inGoogleOverview: googleResult.appearsInOverview,
-    });
+    if (hasWebsite) {
+      generalResults = await Promise.all(
+        GENERAL_MODELS.map(async (m) => {
+          const text = await askOpenRouter(m.id, buildGeneralPrompt(brandName));
+          return { ...parseMentionResponse(text), source: m.source, is_local: false };
+        })
+      );
+      const generalMentionCount = generalResults.filter((r) => r.mentioned).length;
+      websiteScore = Math.round((generalMentionCount / generalResults.length) * 100);
+    }
 
-    await supabaseAdmin
+    const allMentions = [...localResults, ...generalResults];
+    if (allMentions.length > 0) {
+      await supabase.from('ai_mentions').insert(
+        allMentions.map((r) => ({
+          audit_id: audit.id,
+          source: r.source,
+          mentioned: r.mentioned,
+          sentiment: r.sentiment,
+          citation_url: r.citation_url,
+          is_local: r.is_local,
+        }))
+      );
+    }
+
+    // 3. Google AI Overview check — only if website provided
+    if (hasWebsite && process.env.SERPER_API_KEY) {
+      try {
+        const serperRes = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': process.env.SERPER_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ q: brandName }),
+        });
+        const serperData = await serperRes.json();
+        const overviewText = JSON.stringify(serperData.answerBox || serperData.knowledgeGraph || {});
+        const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
+
+        await supabase.from('google_ai_overview_results').insert({
+          audit_id: audit.id,
+          query: brandName,
+          appears_in_overview: appearsInOverview,
+          ranked_position: null,
+          competitor_urls: [],
+        });
+      } catch (e) {
+        // Serper fail hone par bhi audit block nahi hona chahiye
+      }
+    }
+
+    await supabase
       .from('audits')
       .update({
-        status: 'done',
-        visibility_score: score,
-        completed_at: new Date().toISOString(),
+        status: 'complete',
+        visibility_score: websiteScore,
+        local_visibility_score: localScore,
       })
       .eq('id', audit.id);
 
-    return NextResponse.json({ auditId: audit.id, visibilityScore: score });
+    return NextResponse.json({ auditId: audit.id });
   } catch (err: any) {
-    console.error('Audit error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Audit failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message || 'Audit failed' }, { status: 500 });
   }
-}
-
-async function checkOpenAiMention(brandName: string, websiteUrl: string) {
-  const prompt = `Do you have any knowledge of a brand called "${brandName}" (website: ${websiteUrl})? Answer with YES or NO, then one sentence describing sentiment (positive/neutral/negative/unknown).`;
-
-  const { text } = await callOpenRouter('openai/gpt-4o-mini', prompt);
-
-  const mentioned = /\byes\b/i.test(text);
-  let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
-  if (/positive/i.test(text)) sentiment = 'positive';
-  else if (/negative/i.test(text)) sentiment = 'negative';
-  else if (mentioned) sentiment = 'neutral';
-
-  return { mentioned, sentiment, raw: text };
-}
-
-async function checkPerplexityMention(brandName: string, websiteUrl: string) {
-  const prompt = `What do you find online about the brand "${brandName}" (${websiteUrl})? Cite your source URL if you have one.`;
-
-  const { text, citations } = await callOpenRouter('perplexity/sonar', prompt);
-
-  const mentioned = text.length > 0 && !/no information|not found/i.test(text);
-
-  return {
-    mentioned,
-    sentiment: mentioned ? ('neutral' as const) : null,
-    citationUrl: citations[0] ?? null,
-    raw: text,
-  };
-}
-
-async function checkGoogleAiOverview(brandName: string) {
-  const res = await fetch('https://google.serper.dev/search', {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': process.env.SERPER_API_KEY!,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ q: `${brandName} reviews` }),
-  });
-
-  const data = await res.json();
-  const overview = data?.answerBox || data?.knowledgeGraph || null;
-  const organicResults: any[] = data?.organic ?? [];
-
-  const position = organicResults.findIndex((r) =>
-    r.link?.toLowerCase().includes(brandName.toLowerCase())
-  );
-
-  return {
-    appearsInOverview: Boolean(overview),
-    position: position >= 0 ? position + 1 : null,
-    competitorUrls: organicResults.slice(0, 3).map((r) => r.link),
-  };
-}
-
-function computeVisibilityScore(input: {
-  openaiMentioned: boolean;
-  perplexityMentioned: boolean;
-  inGoogleOverview: boolean;
-}) {
-  let score = 0;
-  if (input.openaiMentioned) score += 35;
-  if (input.perplexityMentioned) score += 35;
-  if (input.inGoogleOverview) score += 30;
-  return score;
 }
