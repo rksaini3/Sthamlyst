@@ -2,20 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
+  }
+  return createClient(url, key);
+}
 
-const razorpay = new Razorpay({
-  key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+function getRazorpay() {
+  const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) {
+    throw new Error('Razorpay env vars missing (check Vercel Environment Variables)');
+  }
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
 
 const FIX_NOW_AMOUNT = 49900; // ₹499 in paise
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const razorpay = getRazorpay();
+
     const { sthamlyOrderIds } = await req.json();
     const optimizationId = sthamlyOrderIds?.[0];
 
