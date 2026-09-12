@@ -1,58 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy init — env var missing hone par sirf request fail ho, poora build nahi.
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
+  }
+  return createClient(url, key);
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { auditId, fixType, wordpressConnectionId } = await req.json();
+    const supabaseAdmin = getSupabaseAdmin();
+    const { optimizationId } = await req.json();
 
-    if (!auditId || !fixType) {
-      return NextResponse.json(
-        { error: 'auditId and fixType are required' },
-        { status: 400 }
-      );
+    if (!optimizationId) {
+      return NextResponse.json({ error: 'optimizationId is required' }, { status: 400 });
     }
 
-    const { data: optimization, error: insertErr } = await supabaseAdmin
+    // Row pehle se dashboard page ne bana di thi (status: pending, payment_status: unpaid).
+    // Yahan hum usi row ko dhoondh ke, payment confirm karke, WordPress pe fix push karte hain.
+    const { data: optimization, error: fetchErr } = await supabaseAdmin
       .from('optimizations')
-      .insert({
-        audit_id: auditId,
-        wordpress_connection_id: wordpressConnectionId ?? null,
-        fix_type: fixType,
-        status: 'pending',
-        payment_status: 'paid',
-      })
-      .select()
+      .select('*')
+      .eq('id', optimizationId)
       .single();
 
-    if (insertErr || !optimization) throw insertErr;
-
-    let wpConnection = null;
-    if (wordpressConnectionId) {
-      const { data } = await supabaseAdmin
-        .from('wordpress_connections')
-        .select('*')
-        .eq('id', wordpressConnectionId)
-        .single();
-      wpConnection = data;
+    if (fetchErr || !optimization) {
+      return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    if (!wpConnection) {
+    await supabaseAdmin
+      .from('optimizations')
+      .update({ payment_status: 'paid' })
+      .eq('id', optimizationId);
+
+    if (!optimization.wordpress_connection_id) {
       await supabaseAdmin
         .from('optimizations')
         .update({ status: 'failed' })
-        .eq('id', optimization.id);
+        .eq('id', optimizationId);
       return NextResponse.json(
         { error: 'No WordPress site connected for this account' },
         { status: 400 }
       );
     }
 
-    const payload = buildFixPayload(fixType);
+    const { data: wpConnection } = await supabaseAdmin
+      .from('wordpress_connections')
+      .select('*')
+      .eq('id', optimization.wordpress_connection_id)
+      .single();
+
+    if (!wpConnection) {
+      await supabaseAdmin
+        .from('optimizations')
+        .update({ status: 'failed' })
+        .eq('id', optimizationId);
+      return NextResponse.json(
+        { error: 'WordPress connection not found' },
+        { status: 400 }
+      );
+    }
+
+    const payload = buildFixPayload(optimization.fix_type);
 
     const auth = Buffer.from(
       `${wpConnection.wp_username}:${wpConnection.wp_app_password}`
@@ -71,7 +84,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin
         .from('optimizations')
         .update({ status: 'failed' })
-        .eq('id', optimization.id);
+        .eq('id', optimizationId);
       const errText = await wpRes.text();
       throw new Error(`WordPress update failed: ${errText}`);
     }
@@ -79,14 +92,14 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin
       .from('optimizations')
       .update({ status: 'applied', applied_at: new Date().toISOString() })
-      .eq('id', optimization.id);
+      .eq('id', optimizationId);
 
     await supabaseAdmin
       .from('wordpress_connections')
       .update({ last_used_at: new Date().toISOString() })
-      .eq('id', wordpressConnectionId);
+      .eq('id', wpConnection.id);
 
-    return NextResponse.json({ success: true, optimizationId: optimization.id });
+    return NextResponse.json({ success: true, optimizationId });
   } catch (err: any) {
     console.error('Optimize error:', err);
     return NextResponse.json(
