@@ -2,11 +2,13 @@
 
 import { useEffect, useState, FormEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import ConnectGBPButton from '@/components/ConnectGBPButton';
 import type { WordpressConnection, Optimization } from '@/types';
 
 export default function OptimizerPage() {
   const [connections, setConnections] = useState<WordpressConnection[]>([]);
   const [optimizations, setOptimizations] = useState<Optimization[]>([]);
+  const [gbpConnected, setGbpConnected] = useState(false);
   const [siteUrl, setSiteUrl] = useState('');
   const [wpUsername, setWpUsername] = useState('');
   const [wpAppPassword, setWpAppPassword] = useState('');
@@ -26,6 +28,13 @@ export default function OptimizerPage() {
       .select('*')
       .eq('user_id', userId);
     setConnections(conns ?? []);
+
+    const { data: gbp } = await supabase
+      .from('gbp_connections')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    setGbpConnected(!!gbp);
 
     const { data: opts } = await supabase
       .from('optimizations')
@@ -57,6 +66,17 @@ export default function OptimizerPage() {
   return (
     <main className="px-6 py-10 max-w-2xl mx-auto pb-24">
       <h1 className="text-2xl font-bold mb-6">Optimizer</h1>
+
+      <section className="mb-8">
+        <h2 className="font-semibold mb-2">Google Business Profile</h2>
+        {gbpConnected ? (
+          <div className="border rounded-lg p-4 text-sm text-green-700 bg-green-50">
+            ✅ Google Business Profile connected
+          </div>
+        ) : (
+          <ConnectGBPButton />
+        )}
+      </section>
 
       <section className="mb-8">
         <h2 className="font-semibold mb-2">Connect WordPress Site</h2>
@@ -95,7 +115,7 @@ export default function OptimizerPage() {
         </form>
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="font-semibold mb-2">Connected Sites</h2>
         {connections.map((c) => (
           <div key={c.id} className="border rounded-lg p-3 mb-2 text-sm">
@@ -104,7 +124,7 @@ export default function OptimizerPage() {
         ))}
       </section>
 
-      <section className="mt-8">
+      <section>
         <h2 className="font-semibold mb-2">Fix History</h2>
         {optimizations.map((o) => (
           <div key={o.id} className="border rounded-lg p-3 mb-2 text-sm">
