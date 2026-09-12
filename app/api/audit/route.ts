@@ -1,113 +1,186 @@
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function POST(request: Request) {
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // सुरक्षा के लिए यूजर सेशन चेक करना (यदि बिना लॉगिन के है तो भी सुपाबेस एनोनिमस हैंडल कर सकता है)
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id || null;
+    const { websiteUrl, brandName, userId } = await req.json();
 
-    // आपके होमपेज के वेरिएबल्स को एक्सट्रैक्ट करना
-    const { domainUrl, brandKeyword, action, auditId } = await request.json();
-
-    // --- एक्शन A: फ्री लाइव ऑडिट रन करना (होमपेज से ट्रिगर) ---
-    if (!action) {
-      if (!domainUrl || !brandKeyword) {
-        return NextResponse.json({ error: 'यूआरएल और कीवर्ड अनिवार्य हैं।' }, { status: 400 });
-      }
-
-      // 1. ओपनराउटर (OpenRouter) को कॉल करना
-      let chatgptMentioned = false;
-      let perplexityMentioned = false;
-      let aiAnalysisSummary = "Analysis completed.";
-
-      try {
-        const openRouterRes = await fetch("https://openrouter.ai", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "meta-llama/llama-3.1-70b-instruct", // ओपनराउटर का फ़ास्ट मॉडल
-            messages: [
-              { 
-                role: "user", 
-                content: `Does an AI search recommending "${brandKeyword}" include the website "${domainUrl}"? Answer in brief.` 
-              }
-            ]
-          })
-        });
-        
-        const openRouterData = await openRouterRes.json();
-        aiAnalysisSummary = openRouterData.choices?.?.[0]?.message?.content || aiAnalysisSummary;
-        
-        // एक सिंपल लॉजिकल चेक कि क्या एआई ने वेबसाइट को ढूंढ लिया
-        if (aiAnalysisSummary.toLowerCase().includes(domainUrl.toLowerCase())) {
-          chatgptMentioned = true;
-          perplexityMentioned = true;
-        }
-      } catch (e) {
-        console.log("OpenRouter fetch error, shifting to smart fallback algorithm");
-        chatgptMentioned = Math.random() > 0.5;
-        perplexityMentioned = Math.random() > 0.4;
-      }
-
-      const score = (chatgptMentioned ? 45 : 20) + (perplexityMentioned ? 45 : 25);
-
-      // 2. यदि यूजर लॉग इन है, तो सुपाबेस डेटाबेस में रिकॉर्ड सेव करना
-      let savedAuditId = null;
-      if (userId) {
-        const { data: auditData } = await supabase
-          .from('audits')
-          .insert({
-            user_id: userId,
-            website_url: domainUrl,
-            brand_name: brandKeyword,
-            status: 'done',
-            visibility_score: score
-          })
-          .select().single();
-        
-        if (auditData) savedAuditId = auditData.id;
-      }
-
-      // आपके होमपेज के frontend logic (data.success) को रिस्पॉन्स भेजना
-      return NextResponse.json({
-        success: true,
-        auditId: savedAuditId,
-        perplexity: {
-          mentioned: perplexityMentioned,
-          score: perplexityMentioned ? 85 : 40,
-          details: `Perplexity Search Indexing Status for ${brandKeyword}`
-        },
-        chatgpt: {
-          mentioned: chatgptMentioned,
-          score: chatgptMentioned ? 90 : 35,
-          details: aiAnalysisSummary
-        }
-      });
+    if (!websiteUrl || !brandName) {
+      return NextResponse.json(
+        { error: 'websiteUrl and brandName are required' },
+        { status: 400 }
+      );
     }
 
-    // --- एक्शन B: 1-CLICK FIXED INJECTION ---
-    if (action === 'APPLY_FIX') {
-      const seoSchema = {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": brandKeyword,
-        "url": `https://${domainUrl}`,
-        "description": "Optimized via Sthamly Generative Engine Optimization Core."
-      };
+    const { data: audit, error: insertErr } = await supabaseAdmin
+      .from('audits')
+      .insert({
+        user_id: userId ?? null,
+        website_url: websiteUrl,
+        brand_name: brandName,
+        status: 'running',
+      })
+      .select()
+      .single();
 
-      return NextResponse.json({ success: true, schemaPayload: JSON.stringify(seoSchema, null, 2) });
+    if (insertErr || !audit) {
+      throw insertErr || new Error('Could not create audit row');
     }
 
-    return NextResponse.json({ error: 'गलत कॉन्फ़िगरेशन एक्शन' }, { status: 400 });
+    const openaiMention = await checkOpenAiMention(brandName, websiteUrl);
+    const perplexityMention = await checkPerplexityMention(brandName, websiteUrl);
+    const googleResult = await checkGoogleAiOverview(brandName);
 
+    await supabaseAdmin.from('ai_mentions').insert([
+      {
+        audit_id: audit.id,
+        source: 'openai',
+        mentioned: openaiMention.mentioned,
+        sentiment: openaiMention.sentiment,
+        raw_response: openaiMention.raw,
+      },
+      {
+        audit_id: audit.id,
+        source: 'perplexity',
+        mentioned: perplexityMention.mentioned,
+        sentiment: perplexityMention.sentiment,
+        citation_url: perplexityMention.citationUrl,
+        raw_response: perplexityMention.raw,
+      },
+    ]);
+
+    await supabaseAdmin.from('google_ai_overview_results').insert({
+      audit_id: audit.id,
+      query: `${brandName} reviews`,
+      appears_in_overview: googleResult.appearsInOverview,
+      ranked_position: googleResult.position,
+      competitor_urls: googleResult.competitorUrls,
+    });
+
+    const score = computeVisibilityScore({
+      openaiMentioned: openaiMention.mentioned,
+      perplexityMentioned: perplexityMention.mentioned,
+      inGoogleOverview: googleResult.appearsInOverview,
+    });
+
+    await supabaseAdmin
+      .from('audits')
+      .update({
+        status: 'done',
+        visibility_score: score,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', audit.id);
+
+    return NextResponse.json({ auditId: audit.id, visibilityScore: score });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Audit error:', err);
+    return NextResponse.json(
+      { error: err.message || 'Audit failed' },
+      { status: 500 }
+    );
   }
+}
+
+async function checkOpenAiMention(brandName: string, websiteUrl: string) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: `Do you have any knowledge of a brand called "${brandName}" (website: ${websiteUrl})? Answer with YES or NO, then one sentence describing sentiment (positive/neutral/negative/unknown).`,
+        },
+      ],
+      max_tokens: 100,
+    }),
+  });
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  const mentioned = /\byes\b/i.test(text);
+  let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
+  if (/positive/i.test(text)) sentiment = 'positive';
+  else if (/negative/i.test(text)) sentiment = 'negative';
+  else if (mentioned) sentiment = 'neutral';
+
+  return { mentioned, sentiment, raw: text };
+}
+
+async function checkPerplexityMention(brandName: string, websiteUrl: string) {
+  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar',
+      messages: [
+        {
+          role: 'user',
+          content: `What do you find online about the brand "${brandName}" (${websiteUrl})? Cite your source URL if you have one.`,
+        },
+      ],
+    }),
+  });
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  const citations: string[] = data?.citations ?? [];
+  const mentioned = text.length > 0 && !/no information|not found/i.test(text);
+
+  return {
+    mentioned,
+    sentiment: mentioned ? ('neutral' as const) : null,
+    citationUrl: citations[0] ?? null,
+    raw: text,
+  };
+}
+
+async function checkGoogleAiOverview(brandName: string) {
+  const res = await fetch('https://google.serper.dev/search', {
+    method: 'POST',
+    headers: {
+      'X-API-KEY': process.env.SERPER_API_KEY!,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ q: `${brandName} reviews` }),
+  });
+
+  const data = await res.json();
+  const overview = data?.answerBox || data?.knowledgeGraph || null;
+  const organicResults: any[] = data?.organic ?? [];
+
+  const position = organicResults.findIndex((r) =>
+    r.link?.toLowerCase().includes(brandName.toLowerCase())
+  );
+
+  return {
+    appearsInOverview: Boolean(overview),
+    position: position >= 0 ? position + 1 : null,
+    competitorUrls: organicResults.slice(0, 3).map((r) => r.link),
+  };
+}
+
+function computeVisibilityScore(input: {
+  openaiMentioned: boolean;
+  perplexityMentioned: boolean;
+  inGoogleOverview: boolean;
+}) {
+  let score = 0;
+  if (input.openaiMentioned) score += 35;
+  if (input.perplexityMentioned) score += 35;
+  if (input.inGoogleOverview) score += 30;
+  return score;
 }
