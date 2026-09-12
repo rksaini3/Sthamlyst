@@ -106,9 +106,55 @@ function DashboardContent() {
               {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
               {m.sentiment ? ` · ${m.sentiment}` : ''}
             </p>
+            {m.citation_url && (
+              <a
+                href={m.citation_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 underline break-all mt-1 inline-block"
+              >
+                {m.citation_url}
+              </a>
+            )}
+            {!m.citation_url && m.mentioned && (
+              <p className="text-xs text-gray-400 mt-1">No direct source link returned</p>
+            )}
           </div>
         ))}
       </section>
+
+      {report.google_results.length > 0 && (
+        <section className="mt-8 space-y-3">
+          <h2 className="font-semibold text-lg">Google AI Overview</h2>
+          {report.google_results.map((g) => (
+            <div key={g.id} className="border rounded-lg p-4">
+              <p className="text-sm text-gray-600">
+                Query: <span className="font-medium">{g.query}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                {g.appears_in_overview ? '✅ Appears in AI Overview' : '❌ Not in AI Overview'}
+                {g.ranked_position ? ` · Rank #${g.ranked_position}` : ''}
+              </p>
+              {g.competitor_urls && g.competitor_urls.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-400 mb-1">Top results:</p>
+                  {g.competitor_urls.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 underline break-all block"
+                    >
+                      {url}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="mt-8">
         <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
