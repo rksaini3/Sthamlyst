@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const auditId = searchParams.get('audit');
 
   const [report, setReport] = useState<AuditReport | null>(null);
+  const [optimizationId, setOptimizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,30 @@ export default function DashboardPage() {
       .select('*')
       .eq('audit_id', id);
 
+    // Get the WordPress connection for this user, if any, to attach to the optimization
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: wpConn } = await supabase
+      .from('wordpress_connections')
+      .select('id')
+      .eq('user_id', userData.user?.id)
+      .limit(1)
+      .single();
+
+    // Create a pending optimization row up front so FixButton has an id to pay against
+    const { data: optimization } = await supabase
+      .from('optimizations')
+      .insert({
+        audit_id: id,
+        wordpress_connection_id: wpConn?.id ?? null,
+        fix_type: 'schema_markup',
+        status: 'pending',
+        payment_status: 'unpaid',
+      })
+      .select()
+      .single();
+
+    setOptimizationId(optimization?.id ?? null);
+
     setReport({
       ...audit,
       ai_mentions: mentions ?? [],
@@ -81,7 +106,13 @@ export default function DashboardPage() {
 
       <section className="mt-8">
         <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-        <FixButton auditId={report.id} />
+        {optimizationId ? (
+          <FixButton auditId={report.id} optimizationId={optimizationId} />
+        ) : (
+          <p className="text-sm text-gray-500">
+            Connect your WordPress site in Optimizer first to enable auto-fix.
+          </p>
+        )}
       </section>
     </main>
   );
