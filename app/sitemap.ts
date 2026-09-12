@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next'
 
-// Change this if you deploy on a subdomain (e.g. learn.sthamly.com)
 const BASE_URL = 'https://sthamly.com'
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -10,20 +9,32 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: BASE_URL,
       lastModified,
-      changeFrequency: 'monthly',
+      changeFrequency: 'weekly',
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/bazaar`,
+      url: `${BASE_URL}/login`,
       lastModified,
-      changeFrequency: 'weekly',
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/dashboard`,
+      lastModified,
+      changeFrequency: 'daily',
       priority: 0.8,
     },
     {
-      url: `${BASE_URL}/learn`,
+      url: `${BASE_URL}/optimizer`,
       lastModified,
       changeFrequency: 'weekly',
-      priority: 0.8,
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/profile`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.3,
     },
   ]
 }
