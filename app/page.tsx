@@ -20,7 +20,7 @@ export default function HomePage() {
     });
   }, []);
 
-  async function handleStartAudit(websiteUrl: string, brandName: string) {
+  async function handleStartAudit(data: { brandName: string; city: string; websiteUrl: string }) {
     setLoading(true);
     setError(null);
     try {
@@ -30,7 +30,7 @@ export default function HomePage() {
       const res = await fetch('/api/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl, brandName, userId }),
+        body: JSON.stringify({ ...data, userId }),
       });
 
       if (!res.ok) {
@@ -42,8 +42,8 @@ export default function HomePage() {
 
       addAuditToHistory({
         auditId,
-        brandName,
-        websiteUrl,
+        brandName: data.brandName,
+        websiteUrl: data.websiteUrl || data.city,
         createdAt: new Date().toISOString(),
       });
 
@@ -67,8 +67,8 @@ export default function HomePage() {
         Is your brand visible in AI search?
       </h1>
       <p className="text-gray-600 text-center max-w-md mb-8">
-        Check how ChatGPT, Perplexity, and Google AI Overviews talk about your
-        brand — free.
+        Check how ChatGPT, Gemini, Perplexity, and Google AI Overviews / Maps
+        talk about your business — free.
       </p>
 
       <UrlInputForm onSubmit={handleStartAudit} loading={loading} />
