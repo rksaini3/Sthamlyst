@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
@@ -8,6 +8,14 @@ import FixButton from '@/components/FixButton';
 import type { AuditReport } from '@/types';
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className="p-6">Loading…</main>}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const auditId = searchParams.get('audit');
