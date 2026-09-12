@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { openRazorpayCheckout } from '@/lib/razorpay-client';
+import { startCheckout } from '@/lib/razorpay-client';
 
 interface Props {
   auditId: string;
@@ -15,30 +15,18 @@ export default function FixButton({ auditId, optimizationId }: Props) {
   async function handleFixNow() {
     setLoading(true);
     setMessage(null);
-    try {
-      await openRazorpayCheckout({
-        amount: 49900,
-        description: 'AI Visibility Fix',
-        onSuccess: async () => {
-          // Ab sirf optimizationId bhejte hain — row pehle se dashboard
-          // page ne bana diya tha, ye API sirf usi row ko update/apply karti hai.
-          const res = await fetch('/api/optimize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ optimizationId }),
-          });
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error(body.error || 'Fix could not be applied');
-          }
-          setMessage('✅ Fix applied to your website!');
-        },
-      });
-    } catch (err: any) {
-      setMessage(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
+
+    await startCheckout({
+      sthamlyOrderIds: [optimizationId],
+      onSuccess: () => {
+        setLoading(false);
+        setMessage('✅ Payment done — fix is being applied to your website!');
+      },
+      onFailure: (msg) => {
+        setLoading(false);
+        setMessage(msg);
+      },
+    });
   }
 
   return (
