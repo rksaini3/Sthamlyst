@@ -1,49 +1,31 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Mic, MessageCircle, User } from 'lucide-react'
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
-const items = [
-  { href: '/', icon: Mic, label: 'Home' },
-  { href: '/chat', icon: MessageCircle, label: 'Chats' },
-  { href: '/profile', icon: User, label: 'Profile' },
-]
+const TABS = [
+  { href: '/', label: 'Home' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/optimizer', label: 'Optimizer' },
+  { href: '/profile', label: 'Account' },
+];
 
 export default function BottomNav() {
-  const pathname = usePathname()
-
-  if (pathname === '/login' || pathname.startsWith('/chat/')) return null
+  const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 z-20 pb-[env(safe-area-inset-bottom)]">
-      <div className="max-w-md mx-auto flex items-center justify-around py-2.5">
-        {items.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              className="p-2 flex flex-col items-center gap-0.5"
-              aria-label={label}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon
-                size={26}
-                strokeWidth={active ? 2.5 : 1.8}
-                className={active ? 'text-stone-900 dark:text-stone-100' : 'text-stone-400 dark:text-stone-500'}
-              />
-              <span
-                className={`text-[10px] ${
-                  active ? 'text-stone-900 dark:text-stone-100 font-medium' : 'text-stone-400 dark:text-stone-500'
-                }`}
-              >
-                {label}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
+    <nav className="fixed bottom-0 left-0 right-0 border-t bg-white flex justify-around py-2">
+      {TABS.map((tab) => (
+        <Link
+          key={tab.href}
+          href={tab.href}
+          className={`text-sm ${
+            pathname === tab.href ? 'text-orange-700 font-semibold' : 'text-gray-500'
+          }`}
+        >
+          {tab.label}
+        </Link>
+      ))}
     </nav>
-  )
+  );
 }
