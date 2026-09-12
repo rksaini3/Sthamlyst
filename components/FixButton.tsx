@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { startCheckout } from '@/lib/razorpay-client';
+import { loadRazorpayScript, startCheckout } from '@/lib/razorpay-client';
 
 interface Props {
   auditId: string;
@@ -15,18 +15,22 @@ export default function FixButton({ auditId, optimizationId }: Props) {
   async function handleFixNow() {
     setLoading(true);
     setMessage(null);
-
-    await startCheckout({
-      sthamlyOrderIds: [optimizationId],
-      onSuccess: () => {
-        setLoading(false);
-        setMessage('✅ Payment done — fix is being applied to your website!');
-      },
-      onFailure: (msg) => {
-        setLoading(false);
-        setMessage(msg);
-      },
-    });
+    try {
+      await loadRazorpayScript();
+      await startCheckout({
+        sthamlyOrderIds: [optimizationId],
+        onSuccess: () => {
+          setMessage('✅ Fix applied to your website!');
+        },
+        onFailure: (err: any) => {
+          setMessage(err?.message || 'Payment failed');
+        },
+      });
+    } catch (err: any) {
+      setMessage(err.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -34,7 +38,7 @@ export default function FixButton({ auditId, optimizationId }: Props) {
       <button
         onClick={handleFixNow}
         disabled={loading}
-        className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-50"
+        className="w-full bg-black text-white rounded-lg py-3 font-semibold disabled:opacity-50"
       >
         {loading ? 'Processing…' : 'Fix Now — ₹499'}
       </button>
