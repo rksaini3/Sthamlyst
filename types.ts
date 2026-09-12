@@ -1,5 +1,5 @@
-export type AuditStatus = 'pending' | 'running' | 'done' | 'failed';
-export type AiSource = 'openai' | 'anthropic' | 'perplexity';
+export type AuditStatus = 'pending' | 'processing' | 'complete' | 'failed';
+export type AiSource = 'openai' | 'anthropic' | 'perplexity' | 'gemini';
 export type Sentiment = 'positive' | 'neutral' | 'negative';
 export type FixType = 'schema_markup' | 'faq_section' | 'meta_tags';
 export type OptimizationStatus = 'pending' | 'applied' | 'failed';
@@ -17,11 +17,14 @@ export interface Profile {
 
 export interface Audit {
   id: string;
-  user_id: string;
-  website_url: string;
+  user_id: string | null;
+  website_url: string | null;
   brand_name: string;
+  target_city: string;
+  has_website: boolean;
   status: AuditStatus;
   visibility_score: number | null;
+  local_visibility_score: number | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -33,6 +36,7 @@ export interface AiMention {
   mentioned: boolean;
   sentiment: Sentiment | null;
   citation_url: string | null;
+  is_local: boolean;
   raw_response: string | null;
   created_at: string;
 }
@@ -52,6 +56,7 @@ export interface WordpressConnection {
   user_id: string;
   site_url: string;
   wp_username: string;
+  wp_app_password: string;
   connected_at: string;
   last_used_at: string | null;
 }
