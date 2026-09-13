@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
         allResults.map((r) => ({
           audit_id: audit.id,
           source: r.source,
-          mentioned: r.mentioned === true,
+          mentioned: r.mentioned,
           sentiment: r.sentiment,
           citation_url: r.citation_url,
           is_local: r.is_local,
