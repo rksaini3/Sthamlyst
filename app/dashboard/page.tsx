@@ -101,10 +101,8 @@ function DashboardContent() {
       let chosenConnection = null;
 
       if (allConnections && allConnections.length > 0) {
-        // Pehle: audit ki website ke domain se match karne wali connection dhoondo
         chosenConnection =
           allConnections.find((c) => getDomain(c.site_url) === auditDomain) ??
-          // Fallback: koi match na mile to pehli connection use karo
           allConnections[0];
       }
 
