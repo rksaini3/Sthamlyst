@@ -20,10 +20,6 @@ async function askOpenRouter(model: string, prompt: string): Promise<string | nu
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        // Response sirf 2-3 short lines ka hona chahiye (MENTIONED/SENTIMENT/
-        // CITATION_URL) — max_tokens set na karne par OpenRouter default
-        // maximum (65536) try karta hai, jiske liye zyada credits chahiye
-        // hote hain aur 402 error aata hai. 150 se zyada kabhi nahi chahiye.
         max_tokens: 150,
       }),
     });
@@ -198,7 +194,14 @@ export async function POST(req: NextRequest) {
             'X-API-KEY': process.env.SERPER_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ q: brandName }),
+          body: JSON.stringify({
+            q: brandName,
+            // India-context force karo — bina isके Google ka default
+            // (US-locale) result set aata hai, jisme Indian brands ka
+            // Knowledge Panel/Answer Box zyadatar khaali aata hai.
+            gl: 'in',
+            hl: 'en',
+          }),
         });
         const serperData = await serperRes.json();
         const overviewText = JSON.stringify(
@@ -207,11 +210,17 @@ export async function POST(req: NextRequest) {
         const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
         const organicResults: any[] = serperData.organic ?? [];
 
+        // Ranked position bhi ab actually calculate karo — pehle hamesha
+        // null hi bhej rahe the.
+        const rankedIndex = organicResults.findIndex((r) =>
+          r.link?.toLowerCase().includes(brandName.toLowerCase())
+        );
+
         const { error: googleError } = await supabase.from('google_ai_overview_results').insert({
           audit_id: audit.id,
           query: brandName,
           appears_in_overview: appearsInOverview,
-          ranked_position: null,
+          ranked_position: rankedIndex >= 0 ? rankedIndex + 1 : null,
           competitor_urls: organicResults.slice(0, 3).map((r) => r.link),
         });
         if (googleError) {
