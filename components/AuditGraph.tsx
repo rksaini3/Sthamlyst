@@ -5,6 +5,17 @@ interface Props {
 }
 
 export default function AuditGraph({ score }: Props) {
+  if (score < 0) {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="w-40 h-40 rounded-full flex items-center justify-center text-sm text-gray-400 border-4 border-dashed border-gray-200 text-center px-4">
+          No data yet
+        </div>
+        <p className="text-sm text-gray-500 mt-2">Try re-running the audit</p>
+      </div>
+    );
+  }
+
   const color = score >= 70 ? '#16a34a' : score >= 40 ? '#f59e0b' : '#dc2626';
 
   return (
