@@ -8,7 +8,12 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
-async function askOpenRouter(model: string, prompt: string): Promise<string | null> {
+// Kitne ghante tak purana audit "fresh" mana jayega — isi window ke andar
+// same brand+city+website ka dubara audit aane par purana result reuse
+// hoga, koi naya API call nahi hoga (₹0 cost, instant response).
+const CACHE_FRESHNESS_HOURS = 24;
+
+async function askOpenRouter(models: string[], prompt: string): Promise<string | null> {
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -17,21 +22,24 @@ async function askOpenRouter(model: string, prompt: string): Promise<string | nu
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model,
+        // Array pass karne se OpenRouter apne aap fallback karta hai —
+        // pehle wala model fail/unavailable ho to agla try karta hai.
+        // Sasta model pehle rakho (jaise Flash), mehenga sirf backup ho.
+        models,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
         max_tokens: 150,
       }),
     });
     if (!res.ok) {
-      console.error(`OpenRouter error for ${model}:`, res.status, await res.text());
+      console.error(`OpenRouter error for ${models.join(',')}:`, res.status, await res.text());
       return null;
     }
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
     return content ?? null;
   } catch (e) {
-    console.error(`OpenRouter fetch failed for ${model}:`, e);
+    console.error(`OpenRouter fetch failed for ${models.join(',')}:`, e);
     return null;
   }
 }
@@ -72,14 +80,15 @@ function parseMentionResponse(text: string | null) {
   return { mentioned, sentiment, citation_url: citation, raw: text };
 }
 
+// Har source ke liye ordered model list — sasta/tez pehle, fallback baad mein.
 const LOCAL_MODELS = [
-  { id: 'google/gemini-2.5-pro', source: 'gemini' as const },
-  { id: 'openai/gpt-4o-mini', source: 'openai' as const },
+  { models: ['google/gemini-2.5-flash', 'google/gemini-2.5-pro'], source: 'gemini' as const },
+  { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
 ];
 
 const GENERAL_MODELS = [
-  { id: 'openai/gpt-4o-mini', source: 'openai' as const },
-  { id: 'perplexity/sonar', source: 'perplexity' as const },
+  { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
+  { models: ['perplexity/sonar'], source: 'perplexity' as const },
 ];
 
 function buildLocalPrompt(brandName: string, city: string) {
@@ -100,13 +109,13 @@ Question: Do you have specific knowledge of a brand/company called "${brandName}
 }
 
 async function runModelChecks(
-  models: { id: string; source: string }[],
+  models: { models: string[]; source: string }[],
   promptBuilder: () => string,
   isLocal: boolean
 ) {
   const results = await Promise.all(
     models.map(async (m) => {
-      const text = await askOpenRouter(m.id, promptBuilder());
+      const text = await askOpenRouter(m.models, promptBuilder());
       const parsed = parseMentionResponse(text);
       return { ...parsed, source: m.source, is_local: isLocal };
     })
@@ -119,6 +128,14 @@ async function runModelChecks(
   return { results, score };
 }
 
+function computeGoogleScore(appearsInOverview: boolean, rankedPosition: number | null) {
+  if (appearsInOverview) return 100;
+  if (rankedPosition !== null) {
+    return rankedPosition <= 3 ? 60 : 30;
+  }
+  return 0;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { brandName, city, websiteUrl, userId } = await req.json();
@@ -127,6 +144,32 @@ export async function POST(req: NextRequest) {
     }
     const hasWebsite = !!websiteUrl && websiteUrl.trim().length > 0;
     const supabase = getSupabaseAdmin();
+
+    // --- SMART CACHING: same brand+city+website ka recent complete audit
+    // pehle se ho to naye API calls (OpenRouter + Serper) skip karke
+    // wahi purana audit turant return kar do. Cost ₹0, response instant. ---
+    let cacheQuery = supabase
+      .from('audits')
+      .select('id, created_at')
+      .ilike('brand_name', brandName.trim())
+      .eq('target_city', city.trim())
+      .eq('has_website', hasWebsite)
+      .eq('status', 'complete')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    cacheQuery = hasWebsite
+      ? cacheQuery.eq('website_url', websiteUrl)
+      : cacheQuery.is('website_url', null);
+
+    const { data: cachedAudit } = await cacheQuery.maybeSingle();
+
+    if (cachedAudit) {
+      const ageMs = Date.now() - new Date(cachedAudit.created_at).getTime();
+      if (ageMs < CACHE_FRESHNESS_HOURS * 60 * 60 * 1000) {
+        return NextResponse.json({ auditId: cachedAudit.id, cached: true });
+      }
+    }
 
     const { data: audit, error: insertError } = await supabase
       .from('audits')
@@ -156,7 +199,8 @@ export async function POST(req: NextRequest) {
     );
 
     let websiteResults: any[] = [];
-    let websiteScore: number | null = null;
+    let aiWebsiteScore: number | null = null;
+    let googleScore: number | null = null;
 
     if (hasWebsite) {
       const { results, score } = await runModelChecks(
@@ -165,7 +209,7 @@ export async function POST(req: NextRequest) {
         false
       );
       websiteResults = results;
-      websiteScore = score;
+      aiWebsiteScore = score;
     }
 
     const allResults = [...localResults, ...websiteResults];
@@ -196,9 +240,6 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({
             q: brandName,
-            // India-context force karo — bina isके Google ka default
-            // (US-locale) result set aata hai, jisme Indian brands ka
-            // Knowledge Panel/Answer Box zyadatar khaali aata hai.
             gl: 'in',
             hl: 'en',
           }),
@@ -210,17 +251,18 @@ export async function POST(req: NextRequest) {
         const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
         const organicResults: any[] = serperData.organic ?? [];
 
-        // Ranked position bhi ab actually calculate karo — pehle hamesha
-        // null hi bhej rahe the.
         const rankedIndex = organicResults.findIndex((r) =>
           r.link?.toLowerCase().includes(brandName.toLowerCase())
         );
+        const rankedPosition = rankedIndex >= 0 ? rankedIndex + 1 : null;
+
+        googleScore = computeGoogleScore(appearsInOverview, rankedPosition);
 
         const { error: googleError } = await supabase.from('google_ai_overview_results').insert({
           audit_id: audit.id,
           query: brandName,
           appears_in_overview: appearsInOverview,
-          ranked_position: rankedIndex >= 0 ? rankedIndex + 1 : null,
+          ranked_position: rankedPosition,
           competitor_urls: organicResults.slice(0, 3).map((r) => r.link),
         });
         if (googleError) {
@@ -229,6 +271,15 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('Serper check failed:', e);
       }
+    }
+
+    let websiteScore: number | null = null;
+    if (aiWebsiteScore !== null && googleScore !== null) {
+      websiteScore = Math.round(aiWebsiteScore * 0.7 + googleScore * 0.3);
+    } else if (aiWebsiteScore !== null) {
+      websiteScore = aiWebsiteScore;
+    } else if (googleScore !== null) {
+      websiteScore = googleScore;
     }
 
     await supabase
@@ -241,7 +292,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', audit.id);
 
-    return NextResponse.json({ auditId: audit.id });
+    return NextResponse.json({ auditId: audit.id, cached: false });
   } catch (err: any) {
     console.error('Audit failed:', err);
     return NextResponse.json({ error: err.message || 'Audit failed' }, { status: 500 });
