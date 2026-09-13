@@ -217,14 +217,20 @@ function DashboardContent() {
               <p className="text-sm text-gray-400">No search presence data available.</p>
             )}
             {report.google_results.map((g) => (
-              <div key={g.id} className="border rounded-lg p-4">
+              <div key={g.id} className="border rounded-lg p-4 space-y-1">
                 <p className="text-sm text-gray-600">
                   Query: <span className="font-medium">{g.query}</span>
                 </p>
                 <p className="text-sm text-gray-600">
-                  {g.appears_in_overview ? '✅ Appears in Knowledge Panel/Answer Box' : '❌ Not found'}
-                  {g.ranked_position ? ` · Rank #${g.ranked_position}` : ''}
+                  Knowledge Panel:{' '}
+                  {g.appears_in_overview ? '✅ Appears' : '❌ Not shown for this query'}
                 </p>
+                {g.ranked_position && (
+                  <p className="text-sm text-gray-600">
+                    Organic Search Rank: <span className="font-medium">#{g.ranked_position}</span>{' '}
+                    (aapki website search results mein kitne number par hai)
+                  </p>
+                )}
                 {g.competitor_urls && g.competitor_urls.length > 0 && (
                   <div className="mt-2">
                     <p className="text-xs text-gray-400 mb-1">Top organic results:</p>
