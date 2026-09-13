@@ -37,6 +37,15 @@ function mentionBadge(mentioned: boolean | null) {
   );
 }
 
+function getDomain(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -44,6 +53,7 @@ function DashboardContent() {
 
   const [report, setReport] = useState<AuditReport | null>(null);
   const [optimizationId, setOptimizationId] = useState<string | null>(null);
+  const [matchedSite, setMatchedSite] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'maps' | 'website'>('maps');
@@ -82,18 +92,29 @@ function DashboardContent() {
 
     if (audit.has_website) {
       const { data: userData } = await supabase.auth.getUser();
-      const { data: wpConn } = await supabase
+      const { data: allConnections } = await supabase
         .from('wordpress_connections')
-        .select('id')
-        .eq('user_id', userData.user?.id ?? '')
-        .limit(1)
-        .maybeSingle();
+        .select('id, site_url')
+        .eq('user_id', userData.user?.id ?? '');
+
+      const auditDomain = getDomain(audit.website_url);
+      let chosenConnection = null;
+
+      if (allConnections && allConnections.length > 0) {
+        // Pehle: audit ki website ke domain se match karne wali connection dhoondo
+        chosenConnection =
+          allConnections.find((c) => getDomain(c.site_url) === auditDomain) ??
+          // Fallback: koi match na mile to pehli connection use karo
+          allConnections[0];
+      }
+
+      setMatchedSite(chosenConnection?.site_url ?? null);
 
       const { data: optimization } = await supabase
         .from('optimizations')
         .insert({
           audit_id: id,
-          wordpress_connection_id: wpConn?.id ?? null,
+          wordpress_connection_id: chosenConnection?.id ?? null,
           fix_type: 'schema_markup',
           status: 'pending',
           payment_status: 'unpaid',
@@ -211,7 +232,7 @@ function DashboardContent() {
           <section className="mb-6 space-y-2">
             <h2 className="font-semibold text-lg">Google Search Presence</h2>
             <p className="text-xs text-gray-400 mb-1">
-              Google Knowledge Panel / Answer Box में presence — Google का नया "AI Overview" फीचर अभी इस चेक में शामिल नहीं है।
+              Google Knowledge Panel / Answer Box में presence — Google का नया "AI Overview" फीचर अभी इस चेक में शामिल नहीं है। (Website score mein 30% weight ke saath already shaamil hai.)
             </p>
             {report.google_results.length === 0 && (
               <p className="text-sm text-gray-400">No search presence data available.</p>
@@ -254,7 +275,14 @@ function DashboardContent() {
           <section>
             <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
             {optimizationId ? (
-              <FixButton auditId={report.id} optimizationId={optimizationId} />
+              <>
+                {matchedSite && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    Ye fix <span className="font-medium">{matchedSite}</span> par apply hoga
+                  </p>
+                )}
+                <FixButton auditId={report.id} optimizationId={optimizationId} />
+              </>
             ) : (
               <p className="text-sm text-gray-500">
                 Connect your WordPress site in Optimizer first to enable auto-fix.
