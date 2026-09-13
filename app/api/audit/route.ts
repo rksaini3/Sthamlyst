@@ -8,57 +8,117 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
-async function askOpenRouter(model: string, prompt: string) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
+async function askOpenRouter(model: string, prompt: string): Promise<string | null> {
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`OpenRouter error for ${model}:`, res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    return content ?? null;
+  } catch (e) {
+    console.error(`OpenRouter fetch failed for ${model}:`, e);
+    return null;
+  }
 }
 
-function parseMentionResponse(text: string) {
-  const mentioned = /MENTIONED:\s*yes/i.test(text);
+// Robust parser: strict format try karta hai, fail hone par flexible keyword-scan par fallback karta hai
+function parseMentionResponse(text: string | null) {
+  if (!text) {
+    return { mentioned: null, sentiment: 'neutral' as const, citation_url: null, raw: null };
+  }
+
+  const strictMatch = text.match(/MENTIONED:\s*(yes|no)/i);
+  let mentioned: boolean | null = null;
+
+  if (strictMatch) {
+    mentioned = strictMatch[1].toLowerCase() === 'yes';
+  } else {
+    // Fallback: pehle "yes" ya "no" jo bhi text mein pehle aaye, use lena
+    const yesIndex = text.search(/\byes\b/i);
+    const noIndex = text.search(/\bno\b/i);
+    if (yesIndex === -1 && noIndex === -1) {
+      mentioned = null; // sach mein anisha nahi bata paaye — count mat karo
+    } else if (yesIndex === -1) {
+      mentioned = false;
+    } else if (noIndex === -1) {
+      mentioned = true;
+    } else {
+      mentioned = yesIndex < noIndex;
+    }
+  }
+
   const sentimentMatch = text.match(/SENTIMENT:\s*(positive|neutral|negative)/i);
-  const sentiment = sentimentMatch ? sentimentMatch[1].toLowerCase() : 'neutral';
+  const sentiment = (sentimentMatch ? sentimentMatch[1].toLowerCase() : 'neutral') as
+    | 'positive'
+    | 'neutral'
+    | 'negative';
+
   const citationMatch = text.match(/CITATION_URL:\s*(\S+)/i);
-  return {
-    mentioned,
-    sentiment,
-    citation_url: citationMatch ? citationMatch[1] : null,
-  };
+  const citation = citationMatch && citationMatch[1].toLowerCase() !== 'none' ? citationMatch[1] : null;
+
+  return { mentioned, sentiment, citation_url: citation, raw: text };
 }
 
 const LOCAL_MODELS = [
-  { id: 'google/gemini-2.5-pro', source: 'gemini' },
-  { id: 'openai/gpt-4o-mini', source: 'openai' },
+  { id: 'google/gemini-2.5-pro', source: 'gemini' as const },
+  { id: 'openai/gpt-4o-mini', source: 'openai' as const },
 ];
 
 const GENERAL_MODELS = [
-  { id: 'openai/gpt-4o-mini', source: 'openai' },
-  { id: 'perplexity/sonar', source: 'perplexity' },
+  { id: 'openai/gpt-4o-mini', source: 'openai' as const },
+  { id: 'perplexity/sonar', source: 'perplexity' as const },
 ];
 
 function buildLocalPrompt(brandName: string, city: string) {
-  return `You are simulating a local search assistant. If someone in ${city} searched for a business like "${brandName}" or a relevant local service category near them, would "${brandName}" specifically be known or mentioned? Reply in this exact format:
-MENTIONED: yes/no
-SENTIMENT: positive/neutral/negative
-Reason: one line`;
+  return `Answer strictly in this exact format, nothing else, no extra commentary:
+MENTIONED: yes or no
+SENTIMENT: positive, neutral, or negative
+
+Question: If someone in ${city} searched for a local business like "${brandName}" or a relevant service category near them, is "${brandName}" a business/brand you have specific knowledge of?`;
 }
 
 function buildGeneralPrompt(brandName: string) {
-  return `Do you know of a brand/company called "${brandName}"? If someone asked about companies or services in its space, would you mention "${brandName}"? Reply in this exact format:
-MENTIONED: yes/no
-SENTIMENT: positive/neutral/negative
-CITATION_URL: url if you have a specific source, else none
-Reason: one line`;
+  return `Answer strictly in this exact format, nothing else, no extra commentary:
+MENTIONED: yes or no
+SENTIMENT: positive, neutral, or negative
+CITATION_URL: a specific url if you know one, otherwise write none
+
+Question: Do you have specific knowledge of a brand/company called "${brandName}"?`;
+}
+
+async function runModelChecks(
+  models: { id: string; source: string }[],
+  promptBuilder: () => string,
+  isLocal: boolean
+) {
+  const results = await Promise.all(
+    models.map(async (m) => {
+      const text = await askOpenRouter(m.id, promptBuilder());
+      const parsed = parseMentionResponse(text);
+      return { ...parsed, source: m.source, is_local: isLocal };
+    })
+  );
+
+  // Sirf wahi results count karo jinka mentioned null nahi hai (yaani model se koi usable jawaab mila)
+  const usable = results.filter((r) => r.mentioned !== null);
+  const mentionCount = usable.filter((r) => r.mentioned === true).length;
+  const score = usable.length > 0 ? Math.round((mentionCount / usable.length) * 100) : null;
+
+  return { results, score };
 }
 
 export async function POST(req: NextRequest) {
@@ -84,50 +144,48 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insertError || !audit) {
-      return NextResponse.json({ error: insertError?.message || 'Could not create audit' }, { status: 500 });
+      return NextResponse.json(
+        { error: insertError?.message || 'Could not create audit' },
+        { status: 500 }
+      );
     }
 
-    // 1. Local visibility check — always runs
-    const localResults = await Promise.all(
-      LOCAL_MODELS.map(async (m) => {
-        const text = await askOpenRouter(m.id, buildLocalPrompt(brandName, city));
-        return { ...parseMentionResponse(text), source: m.source, is_local: true };
-      })
+    const { results: localResults, score: localScore } = await runModelChecks(
+      LOCAL_MODELS,
+      () => buildLocalPrompt(brandName, city),
+      true
     );
 
-    const localMentionCount = localResults.filter((r) => r.mentioned).length;
-    const localScore = Math.round((localMentionCount / localResults.length) * 100);
-
-    // 2. General/website visibility check — only if website provided
-    let generalResults: any[] = [];
+    let websiteResults: any[] = [];
     let websiteScore: number | null = null;
 
     if (hasWebsite) {
-      generalResults = await Promise.all(
-        GENERAL_MODELS.map(async (m) => {
-          const text = await askOpenRouter(m.id, buildGeneralPrompt(brandName));
-          return { ...parseMentionResponse(text), source: m.source, is_local: false };
-        })
+      const { results, score } = await runModelChecks(
+        GENERAL_MODELS,
+        () => buildGeneralPrompt(brandName),
+        false
       );
-      const generalMentionCount = generalResults.filter((r) => r.mentioned).length;
-      websiteScore = Math.round((generalMentionCount / generalResults.length) * 100);
+      websiteResults = results;
+      websiteScore = score;
     }
 
-    const allMentions = [...localResults, ...generalResults];
-    if (allMentions.length > 0) {
+    const allResults = [...localResults, ...websiteResults];
+    if (allResults.length > 0) {
       await supabase.from('ai_mentions').insert(
-        allMentions.map((r) => ({
+        allResults.map((r) => ({
           audit_id: audit.id,
           source: r.source,
-          mentioned: r.mentioned,
+          mentioned: r.mentioned === true,
           sentiment: r.sentiment,
           citation_url: r.citation_url,
           is_local: r.is_local,
+          raw_response: r.raw,
         }))
       );
     }
 
-    // 3. Google AI Overview check — only if website provided
+    // Google Search Presence check (naam sahi rakha — yeh Knowledge Graph/Answer Box hai,
+    // Google ka asli "AI Overview" nahi — Serper woh data nahi deta)
     if (hasWebsite && process.env.SERPER_API_KEY) {
       try {
         const serperRes = await fetch('https://google.serper.dev/search', {
@@ -139,18 +197,21 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({ q: brandName }),
         });
         const serperData = await serperRes.json();
-        const overviewText = JSON.stringify(serperData.answerBox || serperData.knowledgeGraph || {});
+        const overviewText = JSON.stringify(
+          serperData.answerBox || serperData.knowledgeGraph || {}
+        );
         const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
+        const organicResults: any[] = serperData.organic ?? [];
 
         await supabase.from('google_ai_overview_results').insert({
           audit_id: audit.id,
           query: brandName,
           appears_in_overview: appearsInOverview,
           ranked_position: null,
-          competitor_urls: [],
+          competitor_urls: organicResults.slice(0, 3).map((r) => r.link),
         });
       } catch (e) {
-        // Serper fail hone par bhi audit block nahi hona chahiye
+        console.error('Serper check failed:', e);
       }
     }
 
@@ -160,11 +221,13 @@ export async function POST(req: NextRequest) {
         status: 'complete',
         visibility_score: websiteScore,
         local_visibility_score: localScore,
+        completed_at: new Date().toISOString(),
       })
       .eq('id', audit.id);
 
     return NextResponse.json({ auditId: audit.id });
   } catch (err: any) {
+    console.error('Audit failed:', err);
     return NextResponse.json({ error: err.message || 'Audit failed' }, { status: 500 });
   }
 }
