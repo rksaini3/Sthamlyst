@@ -20,6 +20,11 @@ async function askOpenRouter(model: string, prompt: string): Promise<string | nu
         model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
+        // Response sirf 2-3 short lines ka hona chahiye (MENTIONED/SENTIMENT/
+        // CITATION_URL) — max_tokens set na karne par OpenRouter default
+        // maximum (65536) try karta hai, jiske liye zyada credits chahiye
+        // hote hain aur 402 error aata hai. 150 se zyada kabhi nahi chahiye.
+        max_tokens: 150,
       }),
     });
     if (!res.ok) {
