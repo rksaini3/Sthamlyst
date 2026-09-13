@@ -8,9 +8,6 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
-// Kitne ghante tak purana audit "fresh" mana jayega — isi window ke andar
-// same brand+city+website ka dubara audit aane par purana result reuse
-// hoga, koi naya API call nahi hoga (₹0 cost, instant response).
 const CACHE_FRESHNESS_HOURS = 24;
 
 async function askOpenRouter(models: string[], prompt: string): Promise<string | null> {
@@ -22,9 +19,6 @@ async function askOpenRouter(models: string[], prompt: string): Promise<string |
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        // Array pass karne se OpenRouter apne aap fallback karta hai —
-        // pehle wala model fail/unavailable ho to agla try karta hai.
-        // Sasta model pehle rakho (jaise Flash), mehenga sirf backup ho.
         models,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
@@ -80,7 +74,6 @@ function parseMentionResponse(text: string | null) {
   return { mentioned, sentiment, citation_url: citation, raw: text };
 }
 
-// Har source ke liye ordered model list — sasta/tez pehle, fallback baad mein.
 const LOCAL_MODELS = [
   { models: ['google/gemini-2.5-flash', 'google/gemini-2.5-pro'], source: 'gemini' as const },
   { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
@@ -145,9 +138,6 @@ export async function POST(req: NextRequest) {
     const hasWebsite = !!websiteUrl && websiteUrl.trim().length > 0;
     const supabase = getSupabaseAdmin();
 
-    // --- SMART CACHING: same brand+city+website ka recent complete audit
-    // pehle se ho to naye API calls (OpenRouter + Serper) skip karke
-    // wahi purana audit turant return kar do. Cost ₹0, response instant. ---
     let cacheQuery = supabase
       .from('audits')
       .select('id, created_at')
