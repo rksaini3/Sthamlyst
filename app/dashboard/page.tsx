@@ -15,6 +15,28 @@ export default function DashboardPage() {
   );
 }
 
+function mentionBadge(mentioned: boolean | null) {
+  if (mentioned === true) {
+    return (
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+        ✅ Mentioned
+      </span>
+    );
+  }
+  if (mentioned === false) {
+    return (
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+        ❌ Not mentioned
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+      ⚠️ Could not check
+    </span>
+  );
+}
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -122,7 +144,6 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* ===== MAPS / LOCAL TAB ===== */}
       {(!report.has_website || activeTab === 'maps') && (
         <section>
           <AuditGraph score={report.local_visibility_score ?? -1} />
@@ -137,13 +158,7 @@ function DashboardContent() {
               <div key={m.id} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-medium capitalize">{m.source}</p>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      m.mentioned ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
-                  </span>
+                  {mentionBadge(m.mentioned)}
                 </div>
                 <p className="text-sm text-gray-600 capitalize">Sentiment: {m.sentiment ?? '—'}</p>
               </div>
@@ -156,7 +171,6 @@ function DashboardContent() {
         </section>
       )}
 
-      {/* ===== WEBSITE TAB ===== */}
       {report.has_website && activeTab === 'website' && (
         <section>
           <AuditGraph score={report.visibility_score ?? -1} />
@@ -171,13 +185,7 @@ function DashboardContent() {
               <div key={m.id} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-1">
                   <p className="font-medium capitalize">{m.source}</p>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      m.mentioned ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {m.mentioned ? '✅ Mentioned' : '❌ Not mentioned'}
-                  </span>
+                  {mentionBadge(m.mentioned)}
                 </div>
                 <p className="text-sm text-gray-600 capitalize mb-2">Sentiment: {m.sentiment ?? '—'}</p>
 
@@ -193,7 +201,7 @@ function DashboardContent() {
                   </a>
                 ) : (
                   <p className="text-sm text-gray-400">
-                    {m.mentioned ? 'No specific source link returned by this model' : '—'}
+                    {m.mentioned === true ? 'No specific source link returned by this model' : '—'}
                   </p>
                 )}
               </div>
