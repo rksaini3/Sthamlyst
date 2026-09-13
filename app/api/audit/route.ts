@@ -35,7 +35,6 @@ async function askOpenRouter(model: string, prompt: string): Promise<string | nu
   }
 }
 
-// Robust parser: strict format try karta hai, fail hone par flexible keyword-scan par fallback karta hai
 function parseMentionResponse(text: string | null) {
   if (!text) {
     return { mentioned: null, sentiment: 'neutral' as const, citation_url: null, raw: null };
@@ -47,11 +46,10 @@ function parseMentionResponse(text: string | null) {
   if (strictMatch) {
     mentioned = strictMatch[1].toLowerCase() === 'yes';
   } else {
-    // Fallback: pehle "yes" ya "no" jo bhi text mein pehle aaye, use lena
     const yesIndex = text.search(/\byes\b/i);
     const noIndex = text.search(/\bno\b/i);
     if (yesIndex === -1 && noIndex === -1) {
-      mentioned = null; // sach mein anisha nahi bata paaye — count mat karo
+      mentioned = null;
     } else if (yesIndex === -1) {
       mentioned = false;
     } else if (noIndex === -1) {
@@ -113,7 +111,6 @@ async function runModelChecks(
     })
   );
 
-  // Sirf wahi results count karo jinka mentioned null nahi hai (yaani model se koi usable jawaab mila)
   const usable = results.filter((r) => r.mentioned !== null);
   const mentionCount = usable.filter((r) => r.mentioned === true).length;
   const score = usable.length > 0 ? Math.round((mentionCount / usable.length) * 100) : null;
@@ -144,6 +141,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insertError || !audit) {
+      console.error('audits insert failed:', insertError?.message);
       return NextResponse.json(
         { error: insertError?.message || 'Could not create audit' },
         { status: 500 }
@@ -171,7 +169,7 @@ export async function POST(req: NextRequest) {
 
     const allResults = [...localResults, ...websiteResults];
     if (allResults.length > 0) {
-      await supabase.from('ai_mentions').insert(
+      const { error: mentionsError } = await supabase.from('ai_mentions').insert(
         allResults.map((r) => ({
           audit_id: audit.id,
           source: r.source,
@@ -182,10 +180,11 @@ export async function POST(req: NextRequest) {
           raw_response: r.raw,
         }))
       );
+      if (mentionsError) {
+        console.error('ai_mentions insert failed:', mentionsError.message);
+      }
     }
 
-    // Google Search Presence check (naam sahi rakha — yeh Knowledge Graph/Answer Box hai,
-    // Google ka asli "AI Overview" nahi — Serper woh data nahi deta)
     if (hasWebsite && process.env.SERPER_API_KEY) {
       try {
         const serperRes = await fetch('https://google.serper.dev/search', {
@@ -203,13 +202,16 @@ export async function POST(req: NextRequest) {
         const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
         const organicResults: any[] = serperData.organic ?? [];
 
-        await supabase.from('google_ai_overview_results').insert({
+        const { error: googleError } = await supabase.from('google_ai_overview_results').insert({
           audit_id: audit.id,
           query: brandName,
           appears_in_overview: appearsInOverview,
           ranked_position: null,
           competitor_urls: organicResults.slice(0, 3).map((r) => r.link),
         });
+        if (googleError) {
+          console.error('google_ai_overview_results insert failed:', googleError.message);
+        }
       } catch (e) {
         console.error('Serper check failed:', e);
       }
