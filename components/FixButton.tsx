@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { startCheckout } from '@/lib/razorpay-client';
+import { loadRazorpayScript, startCheckout } from '@/lib/razorpay-client';
 
 interface Props {
   auditId: string;
@@ -16,22 +16,28 @@ export default function FixButton({ auditId, optimizationId }: Props) {
     setLoading(true);
     setMessage(null);
 
-    await startCheckout({
-      sthamlyOrderIds: [optimizationId],
-      // NOTE: startCheckout ke andar payment success hone par
-      // /api/checkout/verify-payment khud hi call ho jaata hai, jo
-      // signature verify karke WordPress pe fix push kar deta hai.
-      // Isliye yahan /api/optimize ko dobara call NAHI karna — warna
-      // fix WordPress pe do baar apply ho jayega.
-      onSuccess: () => {
-        setMessage('✅ Fix applied to your website!');
-        setLoading(false);
-      },
-      onFailure: (msg) => {
-        setMessage(msg);
-        setLoading(false);
-      },
-    });
+    try {
+      await loadRazorpayScript();
+      await startCheckout({
+        sthamlyOrderIds: [optimizationId],
+        // NOTE: startCheckout ke andar payment success hone par
+        // /api/checkout/verify-payment khud hi call ho jaata hai, jo
+        // signature verify karke WordPress pe fix push kar deta hai.
+        // Isliye yahan /api/optimize ko dobara call NAHI karna — warna
+        // fix WordPress pe do baar apply ho jayega.
+        onSuccess: () => {
+          setMessage('✅ Fix applied to your website!');
+          setLoading(false);
+        },
+        onFailure: (msg: any) => {
+          setMessage(typeof msg === 'string' ? msg : 'Payment failed');
+          setLoading(false);
+        },
+      });
+    } catch (err: any) {
+      setMessage(err?.message || 'Something went wrong — please try again');
+      setLoading(false);
+    }
   }
 
   return (
