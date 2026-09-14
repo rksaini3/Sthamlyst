@@ -1,13 +1,29 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import ConnectGBPButton from '@/components/ConnectGBPButton';
-import type { WordpressConnection, Optimization } from '@/types';
+import type { WordpressConnection, Optimization, Audit } from '@/types';
+
+interface OptimizationWithAudit extends Optimization {
+  audits: Pick<Audit, 'brand_name' | 'visibility_score'> | null;
+}
+
+function getDomain(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
 
 export default function OptimizerPage() {
+  const router = useRouter();
   const [connections, setConnections] = useState<WordpressConnection[]>([]);
-  const [optimizations, setOptimizations] = useState<Optimization[]>([]);
+  const [optimizations, setOptimizations] = useState<OptimizationWithAudit[]>([]);
+  const [siteScores, setSiteScores] = useState<Record<string, { brand: string; score: number | null }>>({});
   const [gbpConnected, setGbpConnected] = useState(false);
   const [siteUrl, setSiteUrl] = useState('');
   const [wpUsername, setWpUsername] = useState('');
@@ -38,9 +54,28 @@ export default function OptimizerPage() {
 
     const { data: opts } = await supabase
       .from('optimizations')
-      .select('*')
+      .select('*, audits(brand_name, visibility_score)')
       .order('created_at', { ascending: false });
-    setOptimizations(opts ?? []);
+    setOptimizations((opts as any) ?? []);
+
+    if (conns && conns.length > 0) {
+      const { data: audits } = await supabase
+        .from('audits')
+        .select('brand_name, website_url, visibility_score, created_at')
+        .eq('user_id', userId)
+        .eq('has_website', true)
+        .order('created_at', { ascending: false });
+
+      const scoreMap: Record<string, { brand: string; score: number | null }> = {};
+      conns.forEach((c) => {
+        const domain = getDomain(c.site_url);
+        const match = (audits ?? []).find((a) => getDomain(a.website_url) === domain);
+        if (match) {
+          scoreMap[c.id] = { brand: match.brand_name, score: match.visibility_score };
+        }
+      });
+      setSiteScores(scoreMap);
+    }
   }
 
   async function handleConnect(e: FormEvent) {
@@ -86,7 +121,7 @@ export default function OptimizerPage() {
             placeholder="https://yoursite.com"
             value={siteUrl}
             onChange={(e) => setSiteUrl(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3"
+            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <input
@@ -94,7 +129,7 @@ export default function OptimizerPage() {
             placeholder="WP username"
             value={wpUsername}
             onChange={(e) => setWpUsername(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3"
+            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <input
@@ -102,13 +137,13 @@ export default function OptimizerPage() {
             placeholder="WP Application Password"
             value={wpAppPassword}
             onChange={(e) => setWpAppPassword(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3"
+            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <button
             type="submit"
             disabled={saving}
-            className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-50"
+            className="bg-[#8B85E3] text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-50 hover:bg-[#7A73D8] transition-colors"
           >
             {saving ? 'Saving…' : 'Connect Site'}
           </button>
@@ -117,20 +152,45 @@ export default function OptimizerPage() {
 
       <section className="mb-8">
         <h2 className="font-semibold mb-2">Connected Sites</h2>
-        {connections.map((c) => (
-          <div key={c.id} className="border rounded-lg p-3 mb-2 text-sm">
-            {c.site_url}
-          </div>
-        ))}
+        {connections.length === 0 && (
+          <p className="text-sm text-gray-400">No sites connected yet.</p>
+        )}
+        {connections.map((c) => {
+          const scoreInfo = siteScores[c.id];
+          return (
+            <div key={c.id} className="border rounded-lg p-4 mb-2">
+              <p className="text-sm font-medium">{c.site_url}</p>
+              {scoreInfo ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  Latest audit: <span className="font-medium">{scoreInfo.brand}</span> · Score:{' '}
+                  <span className="font-semibold">{scoreInfo.score ?? '—'}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">Is site ke liye abhi tak koi audit nahi chala</p>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <section>
         <h2 className="font-semibold mb-2">Fix History</h2>
+        {optimizations.length === 0 && (
+          <p className="text-sm text-gray-400">No fixes attempted yet.</p>
+        )}
         {optimizations.map((o) => (
-          <div key={o.id} className="border rounded-lg p-3 mb-2 text-sm">
-            <p className="capitalize">{o.fix_type.replace('_', ' ')}</p>
-            <p className="text-gray-500">{o.status}</p>
-          </div>
+          <button
+            key={o.id}
+            onClick={() => router.push(`/dashboard?audit=${o.audit_id}`)}
+            className="w-full text-left border rounded-lg p-3 mb-2 text-sm hover:bg-gray-50"
+          >
+            <p className="capitalize font-medium">
+              {o.fix_type.replace('_', ' ')} — {o.audits?.brand_name ?? 'Unknown brand'}
+            </p>
+            <p className="text-gray-500">
+              {o.status} · Payment: {o.payment_status}
+            </p>
+          </button>
         ))}
       </section>
     </main>
