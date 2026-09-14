@@ -1,14 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Offline — Sthamly</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 60px 20px; background:#FCEEDF; color:#B5451B; }
+    body {
+      font-family: -apple-system, sans-serif;
+      text-align: center;
+      padding: 80px 24px;
+      background: #FFFFFF;
+      color: #14162E;
+      margin: 0;
+    }
+    h2 {
+      color: #14162E;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    p {
+      color: #6B7280;
+      font-size: 15px;
+    }
+    button {
+      margin-top: 24px;
+      background: #8B85E3;
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #7A73D8;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0B0C1A; color: #F5F5F7; }
+      p { color: #9CA3AF; }
+    }
   </style>
 </head>
 <body>
   <h2>Aap offline hain</h2>
   <p>Internet connect hone par phir try karein.</p>
+  <button onclick="window.location.reload()">Try Again</button>
 </body>
 </html>
