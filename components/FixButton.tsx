@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { openRazorpayCheckout } from '@/lib/razorpay-client';
+import { startCheckout } from '@/lib/razorpay-client';
 
 interface Props {
   auditId: string;
@@ -15,28 +15,33 @@ export default function FixButton({ auditId, optimizationId }: Props) {
   async function handleFixNow() {
     setLoading(true);
     setMessage(null);
-    try {
-      await openRazorpayCheckout({
-        amount: 49900,
-        description: 'AI Visibility Fix',
-        onSuccess: async () => {
-          const res = await fetch('/api/optimize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ optimizationId }),
-          });
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error(body.error || 'Fix could not be applied');
-          }
+
+    await startCheckout({
+      // NOTE: 'sthamlyOrderIds' Bazaar marketplace orders ke liye bana tha.
+      // Yahan optimizationId bhej rahe hain — ye tabhi kaam karega jab
+      // /api/checkout/create-order isko 'optimizations' table mein bhi
+      // dhoondhna jaanta ho. Agar wo sirf Bazaar 'orders' table check
+      // karta hai, to ye fail hoga — us route ka code dekhna padega.
+      sthamlyOrderIds: [optimizationId],
+      onSuccess: async () => {
+        const res = await fetch('/api/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ optimizationId }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setMessage(body.error || 'Fix could not be applied');
+        } else {
           setMessage('✅ Fix applied to your website!');
-        },
-      });
-    } catch (err: any) {
-      setMessage(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
+        }
+        setLoading(false);
+      },
+      onFailure: (msg) => {
+        setMessage(msg);
+        setLoading(false);
+      },
+    });
   }
 
   return (
