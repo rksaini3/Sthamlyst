@@ -147,7 +147,7 @@ function DashboardContent() {
           <button
             onClick={() => setActiveTab('maps')}
             className={`flex-1 py-2 text-sm font-semibold ${
-              activeTab === 'maps' ? 'border-b-2 border-orange-700 text-orange-700' : 'text-gray-500'
+              activeTab === 'maps' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500'
             }`}
           >
             📍 Maps Visibility
@@ -155,7 +155,7 @@ function DashboardContent() {
           <button
             onClick={() => setActiveTab('website')}
             className={`flex-1 py-2 text-sm font-semibold ${
-              activeTab === 'website' ? 'border-b-2 border-orange-700 text-orange-700' : 'text-gray-500'
+              activeTab === 'website' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500'
             }`}
           >
             🌐 Website AI Score
@@ -184,7 +184,7 @@ function DashboardContent() {
             ))}
           </div>
 
-          <button className="w-full bg-orange-700 text-white rounded-lg py-3 font-semibold">
+          <button className="w-full bg-[#8B85E3] text-white rounded-lg py-3 font-semibold hover:bg-[#7A73D8] transition-colors">
             ⚡ Auto-Fix Google Maps Listing — ₹499
           </button>
         </section>
@@ -214,7 +214,7 @@ function DashboardContent() {
                     href={m.citation_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-600 underline break-all"
+                    className="text-sm text-[#8B85E3] underline break-all"
                   >
                     {m.citation_url}
                   </a>
@@ -259,7 +259,7 @@ function DashboardContent() {
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-600 underline break-all block"
+                        className="text-sm text-[#8B85E3] underline break-all block"
                       >
                         {url}
                       </a>
