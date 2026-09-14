@@ -99,13 +99,13 @@ export default function OptimizerPage() {
   }
 
   return (
-    <main className="px-6 py-10 max-w-2xl mx-auto pb-24">
+    <main className="px-6 py-10 max-w-2xl mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100 min-h-screen">
       <h1 className="text-2xl font-bold mb-6">Optimizer</h1>
 
       <section className="mb-8">
         <h2 className="font-semibold mb-2">Google Business Profile</h2>
         {gbpConnected ? (
-          <div className="border rounded-lg p-4 text-sm text-green-700 bg-green-50">
+          <div className="border border-green-200 dark:border-green-900 rounded-xl p-4 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20">
             ✅ Google Business Profile connected
           </div>
         ) : (
@@ -121,7 +121,7 @@ export default function OptimizerPage() {
             placeholder="https://yoursite.com"
             value={siteUrl}
             onChange={(e) => setSiteUrl(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+            className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <input
@@ -129,7 +129,7 @@ export default function OptimizerPage() {
             placeholder="WP username"
             value={wpUsername}
             onChange={(e) => setWpUsername(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+            className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <input
@@ -137,13 +137,13 @@ export default function OptimizerPage() {
             placeholder="WP Application Password"
             value={wpAppPassword}
             onChange={(e) => setWpAppPassword(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+            className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
           <button
             type="submit"
             disabled={saving}
-            className="bg-[#8B85E3] text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-50 hover:bg-[#7A73D8] transition-colors"
+            className="bg-[#8B85E3] hover:bg-[#7A73D8] transition-colors text-white rounded-xl px-5 py-3 font-semibold disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Connect Site'}
           </button>
@@ -153,20 +153,20 @@ export default function OptimizerPage() {
       <section className="mb-8">
         <h2 className="font-semibold mb-2">Connected Sites</h2>
         {connections.length === 0 && (
-          <p className="text-sm text-gray-400">No sites connected yet.</p>
+          <p className="text-sm text-stone-400">No sites connected yet.</p>
         )}
         {connections.map((c) => {
           const scoreInfo = siteScores[c.id];
           return (
-            <div key={c.id} className="border rounded-lg p-4 mb-2">
+            <div key={c.id} className="border border-stone-200 dark:border-stone-800 rounded-xl p-4 mb-2">
               <p className="text-sm font-medium">{c.site_url}</p>
               {scoreInfo ? (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
                   Latest audit: <span className="font-medium">{scoreInfo.brand}</span> · Score:{' '}
                   <span className="font-semibold">{scoreInfo.score ?? '—'}</span>
                 </p>
               ) : (
-                <p className="text-xs text-gray-400 mt-1">Is site ke liye abhi tak koi audit nahi chala</p>
+                <p className="text-xs text-stone-400 mt-1">Is site ke liye abhi tak koi audit nahi chala</p>
               )}
             </div>
           );
@@ -176,18 +176,18 @@ export default function OptimizerPage() {
       <section>
         <h2 className="font-semibold mb-2">Fix History</h2>
         {optimizations.length === 0 && (
-          <p className="text-sm text-gray-400">No fixes attempted yet.</p>
+          <p className="text-sm text-stone-400">No fixes attempted yet.</p>
         )}
         {optimizations.map((o) => (
           <button
             key={o.id}
             onClick={() => router.push(`/dashboard?audit=${o.audit_id}`)}
-            className="w-full text-left border rounded-lg p-3 mb-2 text-sm hover:bg-gray-50"
+            className="w-full text-left border border-stone-200 dark:border-stone-800 rounded-xl p-3 mb-2 text-sm hover:bg-stone-50 dark:hover:bg-stone-800/50"
           >
             <p className="capitalize font-medium">
               {o.fix_type.replace('_', ' ')} — {o.audits?.brand_name ?? 'Unknown brand'}
             </p>
-            <p className="text-gray-500">
+            <p className="text-stone-500 dark:text-stone-400">
               {o.status} · Payment: {o.payment_status}
             </p>
           </button>
