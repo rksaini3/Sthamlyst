@@ -20,7 +20,7 @@ export default function BottomNav() {
           key={tab.href}
           href={tab.href}
           className={`text-sm ${
-            pathname === tab.href ? 'text-orange-700 font-semibold' : 'text-gray-500'
+            pathname === tab.href ? 'text-[#8B85E3] font-semibold' : 'text-gray-500'
           }`}
         >
           {tab.label}
