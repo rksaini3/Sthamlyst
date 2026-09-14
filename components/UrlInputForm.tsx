@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import { useState, FormEvent } from 'react';
 
@@ -15,7 +15,11 @@ export default function UrlInputForm({ onSubmit, loading }: Props) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!brandName.trim() || !city.trim()) return;
-    onSubmit({ brandName: brandName.trim(), city: city.trim(), websiteUrl: websiteUrl.trim() });
+    onSubmit({
+      brandName: brandName.trim(),
+      city: city.trim(),
+      websiteUrl: websiteUrl.trim(),
+    });
   }
 
   return (
@@ -25,7 +29,7 @@ export default function UrlInputForm({ onSubmit, loading }: Props) {
         placeholder="Business Name"
         value={brandName}
         onChange={(e) => setBrandName(e.target.value)}
-        className="w-full border rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+        className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
         required
       />
       <input
@@ -33,7 +37,7 @@ export default function UrlInputForm({ onSubmit, loading }: Props) {
         placeholder="Target Location / City"
         value={city}
         onChange={(e) => setCity(e.target.value)}
-        className="w-full border rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+        className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
         required
       />
       <input
@@ -41,14 +45,14 @@ export default function UrlInputForm({ onSubmit, loading }: Props) {
         placeholder="Website URL (optional)"
         value={websiteUrl}
         onChange={(e) => setWebsiteUrl(e.target.value)}
-        className="w-full border rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
+        className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
       />
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-[#8B85E3] text-white rounded-lg py-3 font-semibold disabled:opacity-50 hover:bg-[#7A73D8] transition-colors"
+        className="w-full bg-[#8B85E3] hover:bg-[#7A73D8] transition-colors text-white rounded-xl py-3 font-semibold disabled:opacity-50"
       >
-        {loading ? 'Running audit…' : 'Run Free Audit'}
+        {loading ? 'Auditing…' : 'Run Free Audit'}
       </button>
     </form>
   );
