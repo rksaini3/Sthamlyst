@@ -76,17 +76,17 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center px-6 py-16 bg-white">
+    <main className="min-h-screen flex flex-col items-center px-6 py-16 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100">
       {!isLoggedIn && (
-        <p className="text-sm text-gray-500 mb-4">
-          <a href="/login" className="underline">Log in</a> to save your audits permanently across devices
+        <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
+          <a href="/login" className="underline text-[#8B85E3]">Log in</a> to save your audits permanently across devices
         </p>
       )}
 
       <h1 className="text-3xl font-bold text-center mb-3">
         Is your brand visible in AI search?
       </h1>
-      <p className="text-gray-600 text-center max-w-md mb-8">
+      <p className="text-stone-600 dark:text-stone-400 text-center max-w-md mb-8">
         Check how ChatGPT, Gemini, Perplexity, and Google AI Overviews / Maps
         talk about your business — free.
       </p>
@@ -101,7 +101,7 @@ export default function HomePage() {
             <h2 className="font-semibold text-lg">Recent Audits (this device)</h2>
             <button
               onClick={() => setEditMode(!editMode)}
-              className="text-sm text-orange-700 font-medium"
+              className="text-sm text-[#8B85E3] font-medium"
             >
               {editMode ? 'Done' : 'Edit'}
             </button>
@@ -114,7 +114,7 @@ export default function HomePage() {
                   <button
                     onClick={() => handleRemoveEntry(entry.auditId)}
                     aria-label="Delete this audit from history"
-                    className="flex-shrink-0 w-7 h-7 rounded-full bg-red-100 text-red-600 font-bold flex items-center justify-center"
+                    className="flex-shrink-0 w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold flex items-center justify-center"
                   >
                     ✕
                   </button>
@@ -122,10 +122,10 @@ export default function HomePage() {
                 <button
                   onClick={() => !editMode && router.push(`/dashboard?audit=${entry.auditId}`)}
                   disabled={editMode}
-                  className="flex-1 text-left border rounded-lg px-4 py-3 hover:bg-gray-50 disabled:hover:bg-white"
+                  className="flex-1 text-left border border-stone-200 dark:border-stone-700 rounded-xl px-4 py-3 hover:bg-stone-50 dark:hover:bg-stone-800/50 disabled:hover:bg-transparent"
                 >
                   <p className="font-medium">{entry.brandName}</p>
-                  <p className="text-sm text-gray-500">{entry.websiteUrl}</p>
+                  <p className="text-sm text-stone-500 dark:text-stone-400">{entry.websiteUrl}</p>
                 </button>
               </div>
             ))}
@@ -134,7 +134,7 @@ export default function HomePage() {
           {editMode && (
             <button
               onClick={handleClearAll}
-              className="w-full mt-3 text-sm text-red-600 font-medium border border-red-200 rounded-lg py-2"
+              className="w-full mt-3 text-sm text-red-600 dark:text-red-400 font-medium border border-red-200 dark:border-red-900 rounded-xl py-2"
             >
               Clear All History
             </button>
