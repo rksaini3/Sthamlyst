@@ -1,16 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import ThemeToggle from './ThemeToggle';
 
 export default function GlobalHeader() {
   return (
-    <header className="flex items-center justify-between px-4 py-3 border-b">
-      <Link href="/" className="text-xl font-bold text-[#8B85E3]">
+    <header className="sticky top-0 z-20 bg-[#14162E] px-6 py-3 flex items-center justify-between">
+      <Link href="/" className="text-xl font-bold text-[#E0A44B]">
         Sthamly
       </Link>
-      <nav className="flex items-center gap-4 text-sm">
-        <Link href="/dashboard">Dashboard</Link>
-        <Link href="/profile">Account</Link>
+      <nav className="flex items-center gap-5">
+        <Link href="/dashboard" className="text-sm font-medium text-stone-200 hover:text-white transition-colors">
+          Dashboard
+        </Link>
+        <Link href="/profile" className="text-sm font-medium text-stone-200 hover:text-white transition-colors">
+          Account
+        </Link>
+        <ThemeToggle />
       </nav>
     </header>
   );
