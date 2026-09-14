@@ -17,24 +17,14 @@ export default function FixButton({ auditId, optimizationId }: Props) {
     setMessage(null);
 
     await startCheckout({
-      // NOTE: 'sthamlyOrderIds' Bazaar marketplace orders ke liye bana tha.
-      // Yahan optimizationId bhej rahe hain — ye tabhi kaam karega jab
-      // /api/checkout/create-order isko 'optimizations' table mein bhi
-      // dhoondhna jaanta ho. Agar wo sirf Bazaar 'orders' table check
-      // karta hai, to ye fail hoga — us route ka code dekhna padega.
       sthamlyOrderIds: [optimizationId],
-      onSuccess: async () => {
-        const res = await fetch('/api/optimize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ optimizationId }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setMessage(body.error || 'Fix could not be applied');
-        } else {
-          setMessage('✅ Fix applied to your website!');
-        }
+      // NOTE: startCheckout ke andar payment success hone par
+      // /api/checkout/verify-payment khud hi call ho jaata hai, jo
+      // signature verify karke WordPress pe fix push kar deta hai.
+      // Isliye yahan /api/optimize ko dobara call NAHI karna — warna
+      // fix WordPress pe do baar apply ho jayega.
+      onSuccess: () => {
+        setMessage('✅ Fix applied to your website!');
         setLoading(false);
       },
       onFailure: (msg) => {
