@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/AuthProvider';
 import { ThemeProvider } from '@/lib/ThemeProvider';
+import { LanguageProvider } from '@/lib/LanguageProvider';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import SwUpdateWatcher from '@/components/SwUpdateWatcher';
 import ConnectivityToast from '@/components/ConnectivityToast';
@@ -35,14 +36,16 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <ThemeProvider>
-            <ServiceWorkerRegister />
-            <SwUpdateWatcher />
-            <ConnectivityToast />
-            <AnalyticsConsent />
-            <PushInit />
-            <GlobalHeader />
-            {children}
-            <BottomNav />
+            <LanguageProvider>
+              <ServiceWorkerRegister />
+              <SwUpdateWatcher />
+              <ConnectivityToast />
+              <AnalyticsConsent />
+              <PushInit />
+              <GlobalHeader />
+              {children}
+              <BottomNav />
+            </LanguageProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>
