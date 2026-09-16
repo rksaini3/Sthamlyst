@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import LanguageSelect from './LanguageSelect';
 import ThemeToggle from './ThemeToggle';
 
 export default function GlobalHeader() {
@@ -16,6 +17,7 @@ export default function GlobalHeader() {
         <Link href="/profile" className="text-sm font-medium text-stone-200 hover:text-white transition-colors">
           Account
         </Link>
+        <LanguageSelect />
         <ThemeToggle />
       </nav>
     </header>
