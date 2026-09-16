@@ -79,9 +79,11 @@ const LOCAL_MODELS = [
   { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
 ];
 
+// Website tab ke liye ab 3 models — OpenAI, Perplexity, Claude
 const GENERAL_MODELS = [
   { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
   { models: ['perplexity/sonar'], source: 'perplexity' as const },
+  { models: ['anthropic/claude-3.5-haiku'], source: 'anthropic' as const },
 ];
 
 function buildLocalPrompt(brandName: string, city: string) {
