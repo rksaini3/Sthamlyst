@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { useLanguage } from '@/lib/LanguageProvider';
 import UrlInputForm from '@/components/UrlInputForm';
 import {
   addAuditToHistory,
@@ -14,6 +15,7 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<AuditHistoryEntry[]>([]);
@@ -79,17 +81,12 @@ export default function HomePage() {
     <main className="min-h-screen flex flex-col items-center px-6 py-16 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100">
       {!isLoggedIn && (
         <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
-          <a href="/login" className="underline text-[#8B85E3]">Log in</a> to save your audits permanently across devices
+          <a href="/login" className="underline text-[#8B85E3]">{t('home.loginLink')}</a> {t('home.loginPrompt')}
         </p>
       )}
 
-      <h1 className="text-3xl font-bold text-center mb-3">
-        Is your brand visible in AI search?
-      </h1>
-      <p className="text-stone-600 dark:text-stone-400 text-center max-w-md mb-8">
-        Check how ChatGPT, Gemini, Perplexity, and Google AI Overviews / Maps
-        talk about your business — free.
-      </p>
+      <h1 className="text-3xl font-bold text-center mb-3">{t('home.title')}</h1>
+      <p className="text-stone-600 dark:text-stone-400 text-center max-w-md mb-8">{t('home.subtitle')}</p>
 
       <UrlInputForm onSubmit={handleStartAudit} loading={loading} />
 
@@ -98,12 +95,9 @@ export default function HomePage() {
       {history.length > 0 && (
         <section className="w-full max-w-md mt-12">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-lg">Recent Audits (this device)</h2>
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className="text-sm text-[#8B85E3] font-medium"
-            >
-              {editMode ? 'Done' : 'Edit'}
+            <h2 className="font-semibold text-lg">{t('home.recentAudits')}</h2>
+            <button onClick={() => setEditMode(!editMode)} className="text-sm text-[#8B85E3] font-medium">
+              {editMode ? t('home.done') : t('home.edit')}
             </button>
           </div>
 
@@ -136,7 +130,7 @@ export default function HomePage() {
               onClick={handleClearAll}
               className="w-full mt-3 text-sm text-red-600 dark:text-red-400 font-medium border border-red-200 dark:border-red-900 rounded-xl py-2"
             >
-              Clear All History
+              {t('home.clearAll')}
             </button>
           )}
         </section>
