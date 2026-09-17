@@ -1,8 +1,8 @@
 export default function TermsPage() {
   return (
-    <main className="min-h-screen px-6 py-12 max-w-2xl mx-auto pb-24 text-[#14162E]">
+    <main className="min-h-screen px-6 py-12 max-w-2xl mx-auto pb-24 text-[#14162E] dark:text-stone-100 bg-white dark:bg-[#0B0C1A]">
       <h1 className="text-3xl font-bold mb-2">Terms & Conditions</h1>
-      <p className="text-sm text-gray-500 mb-8">Last updated: September 2026</p>
+      <p className="text-sm text-gray-500 dark:text-stone-400 mb-8">Last updated: September 2026</p>
 
       <section className="space-y-6 text-sm leading-relaxed">
         <div>
@@ -18,8 +18,8 @@ export default function TermsPage() {
           <p>
             Sthamly provides AI visibility auditing for brands and local businesses,
             covering AI model mentions (via third-party AI providers) and Google search
-            presence, along with optional paid fixes applied to a connected WordPress
-            site or, where available, a Google Business Profile.
+            presence, along with optional paid fixes applied to a connected website
+            (WordPress or Shopify) or, where available, a Google Business Profile.
           </p>
         </div>
 
@@ -39,20 +39,33 @@ export default function TermsPage() {
           <p>
             One-time fixes (₹499) and subscription plans (₹999/month) are processed via
             Razorpay. Once a fix has been successfully applied to your connected
-            website, the fee is non-refundable, as the service (code/markup insertion)
-            has been delivered. If a payment succeeds but the fix fails to apply due to
-            a technical error on our end, contact support for a resolution or refund.
+            website or store, the fee is non-refundable, as the service (code/markup
+            insertion) has been delivered. If a payment succeeds but the fix fails to
+            apply due to a technical error on our end, contact support for a resolution
+            or refund.
           </p>
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">5. WordPress Connection</h2>
+          <h2 className="font-semibold text-lg mb-2">5. Store & Website Connections</h2>
           <p>
             By connecting your WordPress site, you authorize Sthamly to make specific,
             limited changes (schema markup, FAQ content) via the WordPress REST API
-            using the application password you provide. You are responsible for the
-            accuracy of the credentials you provide and for reviewing changes made to
-            your site.
+            using the application password you provide.
+          </p>
+          <p className="mt-2">
+            By connecting your Shopify store, you authorize Sthamly to access and modify
+            specific store data (such as theme metafields, product/page SEO metadata,
+            and structured data/schema markup) via the Shopify Admin API, using the
+            permissions (scopes) you approve during the connection process. Sthamly
+            requests only the minimum scopes needed to apply the fixes you request, and
+            does not access customer, order, or payment data through this connection.
+          </p>
+          <p className="mt-2">
+            In all cases, you are responsible for the accuracy of the credentials or
+            authorization you provide, and for reviewing changes made to your site or
+            store. You may disconnect your WordPress site or Shopify store at any time
+            from your Account settings, which revokes Sthamly's access going forward.
           </p>
         </div>
 
@@ -60,23 +73,45 @@ export default function TermsPage() {
           <h2 className="font-semibold text-lg mb-2">6. User Responsibilities</h2>
           <ul className="list-disc pl-5 space-y-1">
             <li>You must provide accurate information when creating an audit or account</li>
-            <li>You must not use the Service to audit or target websites you do not own or have authorization to manage, for the purposes of applying fixes</li>
-            <li>You are responsible for maintaining the confidentiality of your account credentials</li>
+            <li>You must not use the Service to audit or target websites or stores you do not own or have authorization to manage, for the purposes of applying fixes</li>
+            <li>You are responsible for maintaining the confidentiality of your account credentials, including any connected WordPress or Shopify credentials</li>
           </ul>
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">7. Limitation of Liability</h2>
+          <h2 className="font-semibold text-lg mb-2">7. Intellectual Property</h2>
           <p>
-            Sthamly is provided "as is" without warranties of any kind. We are not
-            liable for any indirect, incidental, or consequential damages arising from
-            use of the Service, including changes in AI visibility, search ranking, or
-            business outcomes.
+            The Sthamly name, logo, website, and underlying software are the property of
+            Sthamly and may not be copied, modified, or redistributed without
+            permission. Audit reports generated for your brand belong to you and may be
+            used, shared, or published freely.
           </p>
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">8. Termination</h2>
+          <h2 className="font-semibold text-lg mb-2">8. Data Retention & Account Deletion</h2>
+          <p>
+            We retain your account information, audit history, and connected-site
+            credentials (encrypted) for as long as your account is active. You may
+            permanently delete your account and all associated data at any time from
+            Account → Delete Account. Deletion is irreversible and removes your audits,
+            WordPress/Shopify connections, and profile data from our systems.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-semibold text-lg mb-2">9. Limitation of Liability</h2>
+          <p>
+            Sthamly is provided "as is" without warranties of any kind. We are not
+            liable for any indirect, incidental, or consequential damages arising from
+            use of the Service, including changes in AI visibility, search ranking, or
+            business outcomes, or from changes made to a connected website or store
+            through the Service.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="font-semibold text-lg mb-2">10. Termination</h2>
           <p>
             We reserve the right to suspend or terminate access to the Service for
             violation of these terms, at our discretion.
@@ -84,17 +119,20 @@ export default function TermsPage() {
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">9. Governing Law</h2>
-          <p>These Terms are governed by the laws of India.</p>
+          <h2 className="font-semibold text-lg mb-2">11. Governing Law</h2>
+          <p>
+            These Terms are governed by the laws of India, and any disputes shall be
+            subject to the exclusive jurisdiction of the courts at Gonda, Uttar Pradesh.
+          </p>
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">10. Changes to Terms</h2>
+          <h2 className="font-semibold text-lg mb-2">12. Changes to Terms</h2>
           <p>We may revise these Terms from time to time. Continued use after changes constitutes acceptance of the revised Terms.</p>
         </div>
 
         <div>
-          <h2 className="font-semibold text-lg mb-2">11. Contact</h2>
+          <h2 className="font-semibold text-lg mb-2">13. Contact</h2>
           <p>For questions about these Terms, please contact us via the support option in your Account settings.</p>
         </div>
       </section>
