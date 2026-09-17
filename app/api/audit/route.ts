@@ -9,6 +9,33 @@ function getSupabaseAdmin() {
 }
 
 const CACHE_FRESHNESS_HOURS = 24;
+const RATE_LIMIT_MAX_REQUESTS = 5; // ek IP se 1 ghante mein max 5 naye audits
+const RATE_LIMIT_WINDOW_HOURS = 1;
+
+function getClientIp(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.headers.get('x-real-ip') || 'unknown';
+}
+
+async function checkRateLimit(supabase: any, ip: string): Promise<boolean> {
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from('audit_rate_limits')
+    .select('id', { count: 'exact', head: true })
+    .eq('ip_address', ip)
+    .gte('created_at', windowStart);
+
+  if (error) {
+    console.error('Rate limit check failed:', error.message);
+    return true; // check fail ho to block mat karo, request chalne do
+  }
+  return (count ?? 0) < RATE_LIMIT_MAX_REQUESTS;
+}
+
+async function recordRateLimitHit(supabase: any, ip: string) {
+  await supabase.from('audit_rate_limits').insert({ ip_address: ip });
+}
 
 async function askOpenRouter(models: string[], prompt: string): Promise<string | null> {
   try {
@@ -79,7 +106,6 @@ const LOCAL_MODELS = [
   { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
 ];
 
-// Website tab ke liye ab 3 models — OpenAI, Perplexity, Claude
 const GENERAL_MODELS = [
   { models: ['openai/gpt-4o-mini'], source: 'openai' as const },
   { models: ['perplexity/sonar'], source: 'perplexity' as const },
@@ -90,6 +116,7 @@ function buildLocalPrompt(brandName: string, city: string) {
   return `Answer strictly in this exact format, nothing else, no extra commentary:
 MENTIONED: yes or no
 SENTIMENT: positive, neutral, or negative
+REASON: one short sentence explaining your answer
 
 Question: If someone in ${city} searched for a local business like "${brandName}" or a relevant service category near them, is "${brandName}" a business/brand you have specific knowledge of?`;
 }
@@ -139,7 +166,9 @@ export async function POST(req: NextRequest) {
     }
     const hasWebsite = !!websiteUrl && websiteUrl.trim().length > 0;
     const supabase = getSupabaseAdmin();
+    const clientIp = getClientIp(req);
 
+    // --- CACHE CHECK (rate-limit se pehle — cached response free hai, block karne ki zaroorat nahi) ---
     let cacheQuery = supabase
       .from('audits')
       .select('id, created_at')
@@ -162,6 +191,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ auditId: cachedAudit.id, cached: true });
       }
     }
+
+    // --- RATE LIMIT CHECK (sirf naye/non-cached audits ke liye, jinme real API cost lagti hai) ---
+    const allowed = await checkRateLimit(supabase, clientIp);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Bahut zyada audits ho gaye is IP se. Kripya 1 ghante baad try karein.' },
+        { status: 429 }
+      );
+    }
+    await recordRateLimitHit(supabase, clientIp);
 
     const { data: audit, error: insertError } = await supabase
       .from('audits')
