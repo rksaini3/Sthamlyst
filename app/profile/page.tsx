@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Settings } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import EditProfileSheet from '@/components/EditProfileSheet';
 import SubscribeButton from '@/components/SubscribeButton';
@@ -14,6 +12,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [showEditSheet, setShowEditSheet] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
@@ -46,27 +47,43 @@ export default function ProfilePage() {
     router.push('/login');
   }
 
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) return;
+
+    const res = await fetch('/api/account/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setDeleteError(body.error || 'Account delete nahi ho paya');
+      setDeleting(false);
+      return;
+    }
+
+    await supabase.auth.signOut();
+    router.push('/');
+  }
+
   if (!profile) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">Loading…</main>;
 
   return (
     <main className="px-6 py-10 max-w-md mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100 min-h-screen">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold">{profile.full_name}</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowEditSheet(true)}
-            className="text-sm border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-1.5 font-medium"
-          >
-            Edit Profile
-          </button>
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-stone-300 dark:border-stone-700"
-          >
-            <Settings size={18} />
-          </Link>
-        </div>
+        <button
+          onClick={() => setShowEditSheet(true)}
+          className="text-sm border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-1.5 font-medium"
+        >
+          Edit Profile
+        </button>
       </div>
       <p className="text-stone-500 dark:text-stone-400 mb-6">{profile.brand_name}</p>
 
@@ -104,10 +121,45 @@ export default function ProfilePage() {
 
       <button
         onClick={handleLogout}
-        className="w-full border border-red-500 text-red-600 dark:text-red-400 rounded-xl py-3 font-semibold"
+        className="w-full border border-red-500 text-red-600 dark:text-red-400 rounded-xl py-3 font-semibold mb-3"
       >
         Log out
       </button>
+
+      {!showDeleteConfirm ? (
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="w-full text-sm text-red-500 dark:text-red-400 underline py-2"
+        >
+          Delete Account
+        </button>
+      ) : (
+        <div className="border border-red-300 dark:border-red-900 rounded-xl p-4 bg-red-50 dark:bg-red-900/10">
+          <p className="text-sm text-red-700 dark:text-red-400 font-medium mb-1">
+            Pakka delete karna hai?
+          </p>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+            Yeh permanent hai — aapke saare audits, WordPress connections, aur account data hamesha ke liye delete ho jayenge.
+          </p>
+          {deleteError && <p className="text-red-600 text-sm mb-2">{deleteError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl py-2 text-sm font-semibold disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Haan, delete karein'}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              className="flex-1 border border-stone-300 dark:border-stone-700 rounded-xl py-2 text-sm font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {showEditSheet && (
         <EditProfileSheet
