@@ -89,7 +89,6 @@ export default function ProfilePage() {
             Edit Profile
           </button>
 
-          {/* Hamburger menu button */}
           <button
             onClick={() => setShowMenu(!showMenu)}
             aria-label="Menu"
@@ -98,46 +97,37 @@ export default function ProfilePage() {
             <span className="text-lg leading-none">☰</span>
           </button>
 
-          {/* Dropdown menu */}
           {showMenu && (
             <>
-              {/* Backdrop — bahar tap karne se menu band ho jaye */}
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setShowMenu(false)}
-              />
+              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
               <div className="absolute right-0 top-11 z-20 w-52 bg-white dark:bg-[#14162E] border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1">
                 <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    router.push('/settings');
-                  }}
+                  onClick={() => { setShowMenu(false); router.push('/settings'); }}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
                 >
                   ⚙️ Settings
                 </button>
                 <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    router.push('/optimizer');
-                  }}
+                  onClick={() => { setShowMenu(false); router.push('/optimizer'); }}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
                 >
                   🔌 Optimizer
                 </button>
                 <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    router.push('/privacy');
-                  }}
+                  onClick={() => { setShowMenu(false); router.push('/privacy'); }}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
                 >
                   🔒 Privacy Policy
                 </button>
+                <button
+                  onClick={() => { setShowMenu(false); router.push('/terms'); }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  📄 Terms & Conditions
+                </button>
 
                 <div className="border-t border-stone-200 dark:border-stone-700 my-1" />
 
-                {/* Dark mode toggle — header se yahan shift kiya */}
                 <button
                   onClick={toggleDark}
                   className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
@@ -159,10 +149,7 @@ export default function ProfilePage() {
                 <div className="border-t border-stone-200 dark:border-stone-700 my-1" />
 
                 <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    handleLogout();
-                  }}
+                  onClick={() => { setShowMenu(false); handleLogout(); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-stone-50 dark:hover:bg-stone-800"
                 >
                   🚪 Log out
