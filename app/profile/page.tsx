@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { useTheme } from '@/lib/ThemeProvider';
 import EditProfileSheet from '@/components/EditProfileSheet';
 import SubscribeButton from '@/components/SubscribeButton';
 import type { Profile, Audit } from '@/types';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { isDark, toggleDark } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [showEditSheet, setShowEditSheet] = useState(false);
@@ -104,7 +106,7 @@ export default function ProfilePage() {
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 top-11 z-20 w-48 bg-white dark:bg-[#14162E] border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1">
+              <div className="absolute right-0 top-11 z-20 w-52 bg-white dark:bg-[#14162E] border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1">
                 <button
                   onClick={() => {
                     setShowMenu(false);
@@ -132,7 +134,30 @@ export default function ProfilePage() {
                 >
                   🔒 Privacy Policy
                 </button>
+
                 <div className="border-t border-stone-200 dark:border-stone-700 my-1" />
+
+                {/* Dark mode toggle — header se yahan shift kiya */}
+                <button
+                  onClick={toggleDark}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  <span>{isDark ? '🌙 Dark Mode' : '☀️ Light Mode'}</span>
+                  <span
+                    className={`w-9 h-5 rounded-full flex-shrink-0 relative transition-colors ${
+                      isDark ? 'bg-[#8B85E3]' : 'bg-stone-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                        isDark ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </span>
+                </button>
+
+                <div className="border-t border-stone-200 dark:border-stone-700 my-1" />
+
                 <button
                   onClick={() => {
                     setShowMenu(false);
