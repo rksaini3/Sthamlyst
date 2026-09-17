@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { decrypt } from '@/lib/crypto';
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -90,9 +91,19 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
     return { ok: false, error: 'WordPress connection not found' };
   }
 
+  // Password ab DB mein encrypted (AES-256-GCM) format mein save hoti hai —
+  // WordPress ko Basic Auth bhejne se pehle usko decrypt karna zaroori hai.
+  let plainPassword: string;
+  try {
+    plainPassword = decrypt(wpConnection.wp_app_password);
+  } catch (e) {
+    console.error('WordPress password decrypt failed:', e);
+    return { ok: false, error: 'Saved WordPress credentials corrupt ho gayi hain — site ko dobara connect karein' };
+  }
+
   const payload = buildFixPayload(optimization.fix_type);
   const auth = Buffer.from(
-    `${wpConnection.wp_username}:${wpConnection.wp_app_password}`
+    `${wpConnection.wp_username}:${plainPassword}`
   ).toString('base64');
 
   const wpRes = await fetch(`${wpConnection.site_url}/wp-json/wp/v2/pages`, {
