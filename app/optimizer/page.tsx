@@ -29,6 +29,7 @@ export default function OptimizerPage() {
   const [wpUsername, setWpUsername] = useState('');
   const [wpAppPassword, setWpAppPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -81,15 +82,28 @@ export default function OptimizerPage() {
   async function handleConnect(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setError(null);
+
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
+    if (!userId) {
+      setError('Pehle login karein');
+      setSaving(false);
+      return;
+    }
 
-    await supabase.from('wordpress_connections').insert({
-      user_id: userId,
-      site_url: siteUrl,
-      wp_username: wpUsername,
-      wp_app_password: wpAppPassword,
+    const res = await fetch('/api/wordpress/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, siteUrl, wpUsername, wpAppPassword }),
     });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || 'Connection save nahi hui');
+      setSaving(false);
+      return;
+    }
 
     setSiteUrl('');
     setWpUsername('');
@@ -140,6 +154,7 @@ export default function OptimizerPage() {
             className="w-full border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#14162E] text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#8B85E3]"
             required
           />
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
             type="submit"
             disabled={saving}
