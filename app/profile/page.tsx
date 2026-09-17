@@ -13,6 +13,7 @@ export default function ProfilePage() {
   const [audits, setAudits] = useState<Audit[]>([]);
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -75,15 +76,76 @@ export default function ProfilePage() {
   if (!profile) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">Loading…</main>;
 
   return (
-    <main className="px-6 py-10 max-w-md mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100 min-h-screen">
+    <main className="px-6 py-10 max-w-md mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100 min-h-screen relative">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold">{profile.full_name}</h1>
-        <button
-          onClick={() => setShowEditSheet(true)}
-          className="text-sm border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-1.5 font-medium"
-        >
-          Edit Profile
-        </button>
+        <div className="flex items-center gap-2 relative">
+          <button
+            onClick={() => setShowEditSheet(true)}
+            className="text-sm border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-1.5 font-medium"
+          >
+            Edit Profile
+          </button>
+
+          {/* Hamburger menu button */}
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            aria-label="Menu"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-stone-300 dark:border-stone-700"
+          >
+            <span className="text-lg leading-none">☰</span>
+          </button>
+
+          {/* Dropdown menu */}
+          {showMenu && (
+            <>
+              {/* Backdrop — bahar tap karne se menu band ho jaye */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowMenu(false)}
+              />
+              <div className="absolute right-0 top-11 z-20 w-48 bg-white dark:bg-[#14162E] border border-stone-200 dark:border-stone-700 rounded-xl shadow-lg py-1">
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    router.push('/settings');
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  ⚙️ Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    router.push('/optimizer');
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  🔌 Optimizer
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    router.push('/privacy');
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  🔒 Privacy Policy
+                </button>
+                <div className="border-t border-stone-200 dark:border-stone-700 my-1" />
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    handleLogout();
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  🚪 Log out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <p className="text-stone-500 dark:text-stone-400 mb-6">{profile.brand_name}</p>
 
