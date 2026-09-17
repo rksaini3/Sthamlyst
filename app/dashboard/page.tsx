@@ -18,20 +18,20 @@ export default function DashboardPage() {
 function mentionBadge(mentioned: boolean | null) {
   if (mentioned === true) {
     return (
-      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
         ✅ Mentioned
       </span>
     );
   }
   if (mentioned === false) {
     return (
-      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
         ❌ Not mentioned
       </span>
     );
   }
   return (
-    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
       ⚠️ Could not check
     </span>
   );
@@ -131,10 +131,6 @@ function DashboardContent() {
     setLoading(false);
   }
 
-  function handleDownloadReport() {
-    window.print();
-  }
-
   if (loading) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">Loading your report…</main>;
   if (error || !report) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">{error}</main>;
 
@@ -142,195 +138,157 @@ function DashboardContent() {
   const websiteMentions = report.ai_mentions.filter((m) => !m.is_local);
 
   return (
-    <>
-      <style jsx global>{`
-        @media print {
-          nav, header, .no-print { display: none !important; }
-          main { padding: 0 !important; max-width: 100% !important; }
-        }
-      `}</style>
+    <main className="min-h-screen px-6 py-10 max-w-2xl mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100">
+      <h1 className="text-2xl font-bold mb-1">{report.brand_name}</h1>
+      <p className="text-gray-500 dark:text-stone-400 mb-6">{report.target_city}</p>
 
-      <main className="min-h-screen px-6 py-10 max-w-2xl mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100">
-        <div className="flex items-start justify-between mb-1">
-          <div>
-            <h1 className="text-2xl font-bold">{report.brand_name}</h1>
-            <p className="text-stone-500 dark:text-stone-400">{report.target_city}</p>
-          </div>
+      {report.has_website && (
+        <div className="flex border-b border-stone-200 dark:border-stone-800 mb-6">
           <button
-            onClick={handleDownloadReport}
-            className="no-print flex items-center gap-1.5 text-sm border border-stone-300 dark:border-stone-700 rounded-xl px-3 py-2 font-medium hover:bg-stone-50 dark:hover:bg-stone-800/50 mt-1"
+            onClick={() => setActiveTab('maps')}
+            className={`flex-1 py-2 text-sm font-semibold ${
+              activeTab === 'maps' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500 dark:text-stone-400'
+            }`}
           >
-            📄 Download Report
+            📍 Maps Visibility
+          </button>
+          <button
+            onClick={() => setActiveTab('website')}
+            className={`flex-1 py-2 text-sm font-semibold ${
+              activeTab === 'website' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500 dark:text-stone-400'
+            }`}
+          >
+            🌐 Website AI Score
           </button>
         </div>
-        <div className="mb-6" />
+      )}
 
-        {report.has_website && (
-          <div className="no-print flex border-b border-stone-200 dark:border-stone-800 mb-6">
-            <button
-              onClick={() => setActiveTab('maps')}
-              className={`flex-1 py-2 text-sm font-semibold ${
-                activeTab === 'maps'
-                  ? 'border-b-2 border-teal-500 text-teal-600 dark:text-teal-400'
-                  : 'text-stone-500 dark:text-stone-400'
-              }`}
-            >
-              📍 Maps Visibility
-            </button>
-            <button
-              onClick={() => setActiveTab('website')}
-              className={`flex-1 py-2 text-sm font-semibold ${
-                activeTab === 'website'
-                  ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]'
-                  : 'text-stone-500 dark:text-stone-400'
-              }`}
-            >
-              🌐 Website AI Score
-            </button>
+      {(!report.has_website || activeTab === 'maps') && (
+        <section>
+          <AuditGraph score={report.local_visibility_score ?? -1} />
+          <p className="text-center text-gray-600 dark:text-stone-400 mt-3 mb-6">Local AI & Maps Pack Score</p>
+
+          <h3 className="font-semibold mb-2">AI Mentions</h3>
+          <div className="space-y-3 mb-6">
+            {localMentions.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-stone-500">No AI mention data available for this audit.</p>
+            )}
+            {localMentions.map((m) => (
+              <div key={m.id} className="border border-stone-200 dark:border-stone-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium capitalize">{m.source}</p>
+                  {mentionBadge(m.mentioned)}
+                </div>
+                <p className="text-sm text-gray-600 dark:text-stone-400 capitalize">Sentiment: {m.sentiment ?? '—'}</p>
+              </div>
+            ))}
           </div>
-        )}
 
-        {(!report.has_website || activeTab === 'maps') && (
-          <section className="border-t-4 border-teal-500 pt-5 rounded-t-sm">
-            <AuditGraph score={report.local_visibility_score ?? -1} />
-            <p className="text-center text-stone-600 dark:text-stone-400 mt-3 mb-6">
-              Local AI & Maps Pack Score — <span className="text-teal-600 dark:text-teal-400">Google Maps / local search ke context mein</span>
-            </p>
+          <button className="w-full bg-[#8B85E3] hover:bg-[#7A73D8] transition-colors text-white rounded-lg py-3 font-semibold">
+            ⚡ Auto-Fix Google Maps Listing — ₹499
+          </button>
+        </section>
+      )}
 
-            <h3 className="font-semibold mb-2">AI Mentions</h3>
-            <div className="space-y-3 mb-6">
-              {localMentions.length === 0 && (
-                <p className="text-sm text-stone-400">No AI mention data available for this audit.</p>
-              )}
-              {localMentions.map((m) => (
-                <div key={m.id} className="border border-stone-200 dark:border-stone-800 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium capitalize">{m.source}</p>
-                    {mentionBadge(m.mentioned)}
-                  </div>
-                  <p className="text-sm text-stone-600 dark:text-stone-400 capitalize">Sentiment: {m.sentiment ?? '—'}</p>
+      {report.has_website && activeTab === 'website' && (
+        <section>
+          <AuditGraph score={report.visibility_score ?? -1} />
+          <p className="text-center text-gray-600 dark:text-stone-400 mt-3 mb-6">Website AI Visibility Score</p>
+
+          <h3 className="font-semibold mb-2">AI Mentions & Citations</h3>
+          <div className="space-y-3 mb-6">
+            {websiteMentions.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-stone-500">No AI mention data available for this audit.</p>
+            )}
+            {websiteMentions.map((m) => (
+              <div key={m.id} className="border border-stone-200 dark:border-stone-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium capitalize">{m.source}</p>
+                  {mentionBadge(m.mentioned)}
                 </div>
-              ))}
-            </div>
+                <p className="text-sm text-gray-600 dark:text-stone-400 capitalize mb-2">Sentiment: {m.sentiment ?? '—'}</p>
 
-            <button
-              onClick={() => router.push('/optimizer')}
-              className="no-print w-full bg-teal-600 hover:bg-teal-700 transition-colors text-white rounded-xl py-3 font-semibold"
-            >
-              ⚡ Auto-Fix Google Maps Listing — ₹499
-            </button>
-          </section>
-        )}
-
-        {report.has_website && activeTab === 'website' && (
-          <section className="border-t-4 border-[#8B85E3] pt-5 rounded-t-sm">
-            <AuditGraph score={report.visibility_score ?? -1} />
-            <p className="text-center text-stone-600 dark:text-stone-400 mt-3 mb-6">
-              Website AI Visibility Score — <span className="text-[#8B85E3]">aapki poori website ke context mein</span>
-            </p>
-
-            <h3 className="font-semibold mb-2">AI Mentions & Citations</h3>
-            <div className="space-y-3 mb-6">
-              {websiteMentions.length === 0 && (
-                <p className="text-sm text-stone-400">No AI mention data available for this audit.</p>
-              )}
-              {websiteMentions.map((m) => (
-                <div key={m.id} className="border border-stone-200 dark:border-stone-800 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium capitalize">{m.source}</p>
-                    {mentionBadge(m.mentioned)}
-                  </div>
-                  <p className="text-sm text-stone-600 dark:text-stone-400 capitalize mb-2">Sentiment: {m.sentiment ?? '—'}</p>
-
-                  <p className="text-xs text-stone-400 mb-1">Citation:</p>
-                  {m.citation_url ? (
-                    <a
-                      href={m.citation_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[#8B85E3] underline break-all"
-                    >
-                      {m.citation_url}
-                    </a>
-                  ) : m.mentioned === true ? (
-                    <div className="text-xs text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50 rounded-lg p-2 mt-1">
-                      💡 Is model ne koi source link nahi diya. Improve karne ke liye: apni site par
-                      ek <code className="text-[#8B85E3]">llms.txt</code> file add karein, aur
-                      "Fix Now" se schema markup + FAQ jodwayein — isse AI models ko source milna aasan hota hai.
-                    </div>
-                  ) : (
-                    <p className="text-sm text-stone-400">—</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <section className="mb-6 space-y-2">
-              <h2 className="font-semibold text-lg">Google Search Presence</h2>
-              <p className="text-xs text-stone-400 mb-1">
-                Yeh live Google search data hai (Serper ke through) — koi bhi single check hamesha
-                100% accurate nahi ho sakta, kyunki Google apna Knowledge Panel dikhana kabhi bhi
-                badal sakta hai, khaas kar exact-match query type par depend karta hai. "Not shown"
-                ka matlab hamesha bug nahi — yeh us waqt ke live result ko reflect karta hai.
-              </p>
-              {report.google_results.length === 0 && (
-                <p className="text-sm text-stone-400">No search presence data available.</p>
-              )}
-              {report.google_results.map((g) => (
-                <div key={g.id} className="border border-stone-200 dark:border-stone-800 rounded-xl p-4 space-y-1">
-                  <p className="text-sm text-stone-600 dark:text-stone-400">
-                    Query: <span className="font-medium text-stone-900 dark:text-stone-100">{g.query}</span>
+                <p className="text-xs text-gray-400 dark:text-stone-500 mb-1">Citation:</p>
+                {m.citation_url ? (
+                  <a
+                    href={m.citation_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#8B85E3] underline break-all"
+                  >
+                    {m.citation_url}
+                  </a>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-stone-500">
+                    {m.mentioned === true ? 'No specific source link returned by this model' : '—'}
                   </p>
-                  <p className="text-sm text-stone-600 dark:text-stone-400">
-                    Knowledge Panel:{' '}
-                    {g.appears_in_overview ? '✅ Appears' : '❌ Not shown for this query'}
-                  </p>
-                  {g.ranked_position && (
-                    <p className="text-sm text-stone-600 dark:text-stone-400">
-                      Organic Search Rank: <span className="font-medium text-stone-900 dark:text-stone-100">#{g.ranked_position}</span>{' '}
-                      (aapki website search results mein kitne number par hai)
-                    </p>
-                  )}
-                  {g.competitor_urls && g.competitor_urls.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-stone-400 mb-1">Top organic results:</p>
-                      {g.competitor_urls.map((url, i) => (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-[#8B85E3] underline break-all block"
-                        >
-                          {url}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </section>
+                )}
+              </div>
+            ))}
+          </div>
 
-            <section className="no-print">
-              <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-              {optimizationId ? (
-                <>
-                  {matchedSite && (
-                    <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
-                      Ye fix <span className="font-medium">{matchedSite}</span> par apply hoga
-                    </p>
-                  )}
-                  <FixButton auditId={report.id} optimizationId={optimizationId} />
-                </>
-              ) : (
-                <p className="text-sm text-stone-500 dark:text-stone-400">
-                  Connect your WordPress site in Optimizer first to enable auto-fix.
+          <section className="mb-6 space-y-2">
+            <h2 className="font-semibold text-lg">Google Search Presence</h2>
+            <p className="text-xs text-gray-400 dark:text-stone-500 mb-1">
+              Google Knowledge Panel / Answer Box में presence — Google का नया "AI Overview" फीचर अभी इस चेक में शामिल नहीं है। (Website score mein 30% weight ke saath already shaamil hai.)
+            </p>
+            {report.google_results.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-stone-500">No search presence data available.</p>
+            )}
+            {report.google_results.map((g) => (
+              <div key={g.id} className="border border-stone-200 dark:border-stone-800 rounded-lg p-4 space-y-1">
+                <p className="text-sm text-gray-600 dark:text-stone-400">
+                  Query: <span className="font-medium">{g.query}</span>
                 </p>
-              )}
-            </section>
+                <p className="text-sm text-gray-600 dark:text-stone-400">
+                  Knowledge Panel:{' '}
+                  {g.appears_in_overview ? '✅ Appears' : '❌ Not shown for this query'}
+                </p>
+                {g.ranked_position && (
+                  <p className="text-sm text-gray-600 dark:text-stone-400">
+                    Organic Search Rank: <span className="font-medium">#{g.ranked_position}</span>{' '}
+                    (aapki website search results mein kitne number par hai)
+                  </p>
+                )}
+                {g.competitor_urls && g.competitor_urls.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-400 dark:text-stone-500 mb-1">Top organic results:</p>
+                    {g.competitor_urls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-[#8B85E3] underline break-all block"
+                      >
+                        {url}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </section>
-        )}
-      </main>
-    </>
+
+          <section>
+            <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
+            {optimizationId ? (
+              <>
+                {matchedSite && (
+                  <p className="text-xs text-gray-500 dark:text-stone-400 mb-2">
+                    Ye fix <span className="font-medium">{matchedSite}</span> par apply hoga
+                  </p>
+                )}
+                <FixButton auditId={report.id} optimizationId={optimizationId} />
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-stone-400">
+                Connect your WordPress site in Optimizer first to enable auto-fix.
+              </p>
+            )}
+          </section>
+        </section>
+      )}
+    </main>
   );
 }
