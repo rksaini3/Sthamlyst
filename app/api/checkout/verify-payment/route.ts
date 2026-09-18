@@ -52,7 +52,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    const pushResult = await pushFixToWordPress(supabaseAdmin, optimization);
+    // Kaunsa platform connect hai uske hisaab se fix push karo —
+    // WordPress ho ya Shopify, dono independent connections hain ek user ke liye
+    const pushResult = optimization.wordpress_connection_id
+      ? await pushFixToWordPress(supabaseAdmin, optimization)
+      : optimization.shopify_connection_id
+      ? await pushFixToShopify(supabaseAdmin, optimization)
+      : { ok: false, error: 'No connected site (WordPress/Shopify) found for this account' };
+
     if (!pushResult.ok) {
       await supabaseAdmin
         .from('optimizations')
@@ -101,10 +108,8 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
     return { ok: false, error: 'Saved WordPress credentials corrupt ho gayi hain — site ko dobara connect karein' };
   }
 
-  const payload = buildFixPayload(optimization.fix_type);
-  const auth = Buffer.from(
-    `${wpConnection.wp_username}:${plainPassword}`
-  ).toString('base64');
+  const payload = buildWordPressFixPayload(optimization.fix_type);
+  const auth = Buffer.from(`${wpConnection.wp_username}:${plainPassword}`).toString('base64');
 
   const wpRes = await fetch(`${wpConnection.site_url}/wp-json/wp/v2/pages`, {
     method: 'POST',
@@ -128,7 +133,7 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
   return { ok: true };
 }
 
-function buildFixPayload(fixType: string) {
+function buildWordPressFixPayload(fixType: string) {
   switch (fixType) {
     case 'schema_markup':
       return {
@@ -145,5 +150,88 @@ function buildFixPayload(fixType: string) {
       };
     default:
       return { title: 'Update', content: '', status: 'draft' };
+  }
+}
+
+async function pushFixToShopify(supabaseAdmin: any, optimization: any) {
+  if (!optimization.shopify_connection_id) {
+    return { ok: false, error: 'No Shopify store connected for this account' };
+  }
+
+  const { data: shopifyConnection } = await supabaseAdmin
+    .from('shopify_connections')
+    .select('*')
+    .eq('id', optimization.shopify_connection_id)
+    .single();
+
+  if (!shopifyConnection) {
+    return { ok: false, error: 'Shopify connection not found' };
+  }
+
+  let plainToken: string;
+  try {
+    plainToken = decrypt(shopifyConnection.access_token);
+  } catch (e) {
+    console.error('Shopify token decrypt failed:', e);
+    return { ok: false, error: 'Saved Shopify credentials corrupt ho gayi hain — store ko dobara connect karein' };
+  }
+
+  const { endpoint, body } = buildShopifyFixPayload(optimization.fix_type);
+
+  const shopifyRes = await fetch(
+    `https://${shopifyConnection.shop_domain}/admin/api/2024-01/${endpoint}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': plainToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!shopifyRes.ok) {
+    const errText = await shopifyRes.text();
+    return { ok: false, error: `Shopify update failed: ${errText}` };
+  }
+
+  await supabaseAdmin
+    .from('shopify_connections')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', shopifyConnection.id);
+
+  return { ok: true };
+}
+
+function buildShopifyFixPayload(fixType: string): { endpoint: string; body: any } {
+  switch (fixType) {
+    case 'schema_markup':
+      // Shopify pages ke liye direct <script> inject nahi hota — iske bajaye
+      // ScriptTag API se site-wide JSON-LD schema script load karwate hain
+      return {
+        endpoint: 'script_tags.json',
+        body: {
+          script_tag: {
+            event: 'onload',
+            src: 'https://www.sthamly.com/schema/organization.js',
+          },
+        },
+      };
+    case 'faq_section':
+      return {
+        endpoint: 'pages.json',
+        body: {
+          page: {
+            title: 'FAQ',
+            body_html: '<h2>Frequently Asked Questions</h2>',
+            published: true,
+          },
+        },
+      };
+    default:
+      return {
+        endpoint: 'pages.json',
+        body: { page: { title: 'Update', body_html: '', published: false } },
+      };
   }
 }
