@@ -4,7 +4,8 @@ import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import ConnectGBPButton from '@/components/ConnectGBPButton';
-import type { WordpressConnection, Optimization, Audit } from '@/types';
+import ConnectShopifyButton from '@/components/ConnectShopifyButton';
+import type { WordpressConnection, ShopifyConnection, Optimization, Audit } from '@/types';
 
 interface OptimizationWithAudit extends Optimization {
   audits: Pick<Audit, 'brand_name' | 'visibility_score'> | null;
@@ -22,6 +23,7 @@ function getDomain(url: string | null | undefined): string | null {
 export default function OptimizerPage() {
   const router = useRouter();
   const [connections, setConnections] = useState<WordpressConnection[]>([]);
+  const [shopifyConnections, setShopifyConnections] = useState<ShopifyConnection[]>([]);
   const [optimizations, setOptimizations] = useState<OptimizationWithAudit[]>([]);
   const [siteScores, setSiteScores] = useState<Record<string, { brand: string; score: number | null }>>({});
   const [gbpConnected, setGbpConnected] = useState(false);
@@ -45,6 +47,12 @@ export default function OptimizerPage() {
       .select('*')
       .eq('user_id', userId);
     setConnections(conns ?? []);
+
+    const { data: shopifyConns } = await supabase
+      .from('shopify_connections')
+      .select('*')
+      .eq('user_id', userId);
+    setShopifyConnections(shopifyConns ?? []);
 
     const { data: gbp } = await supabase
       .from('gbp_connections')
@@ -124,6 +132,17 @@ export default function OptimizerPage() {
           </div>
         ) : (
           <ConnectGBPButton />
+        )}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="font-semibold mb-2">Shopify Store</h2>
+        {shopifyConnections.length > 0 ? (
+          <div className="border border-green-200 dark:border-green-900 rounded-xl p-4 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20">
+            ✅ Connected: {shopifyConnections[0].shop_domain}
+          </div>
+        ) : (
+          <ConnectShopifyButton />
         )}
       </section>
 
