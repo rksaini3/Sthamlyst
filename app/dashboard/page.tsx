@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
+import { useIntroPrice } from '@/lib/useIntroPrice';
 import type { AuditReport } from '@/types';
 
 export default function DashboardPage() {
@@ -57,6 +58,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'maps' | 'website'>('maps');
+  const { amountLabel: mapsFixPrice } = useIntroPrice();
 
   useEffect(() => {
     if (!auditId) {
@@ -184,8 +186,19 @@ function DashboardContent() {
             ))}
           </div>
 
-          <button className="w-full bg-[#8B85E3] hover:bg-[#7A73D8] transition-colors text-white rounded-lg py-3 font-semibold">
-            ⚡ Auto-Fix Google Maps Listing — ₹499
+          {/*
+            NOTE: Yeh button abhi jaan-bujhkar disabled hai — Google Business Profile
+            API access abhi Google approval ke pending hai. Jab tak actual GBP push
+            backend na bane, ismein clickable/payable banana galat hai (paisa lekar
+            bina delivery kiye chhodna). Approval milte hi isko FixButton jaisa live
+            kar dena — fix_type: 'gbp_listing' wala naya optimization record banake.
+          */}
+          <button
+            disabled
+            title="Google Business Profile API approval pending — jald hi live hoga"
+            className="w-full bg-stone-300 dark:bg-stone-700 text-stone-500 dark:text-stone-400 rounded-lg py-3 font-semibold cursor-not-allowed"
+          >
+            ⚡ Auto-Fix Google Maps Listing — {mapsFixPrice} (जल्द आ रहा है)
           </button>
         </section>
       )}
