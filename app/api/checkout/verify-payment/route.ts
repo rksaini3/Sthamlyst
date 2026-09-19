@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { decrypt } from '@/lib/crypto';
 
@@ -10,6 +11,13 @@ function getSupabaseAdmin() {
     throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
   }
   return createClient(url, key);
+}
+
+function getRazorpay() {
+  return new Razorpay({
+    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+    key_secret: process.env.RAZORPAY_KEY_SECRET!,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -30,8 +38,7 @@ export async function POST(req: NextRequest) {
       throw new Error('RAZORPAY_KEY_SECRET missing (check Vercel Environment Variables)');
     }
 
-    // Signature verify — yahi step confirm karta hai ki payment genuinely
-    // Razorpay se hui hai, koi fake request nahi hai
+    // Signature verify — confirm karta hai payment genuinely Razorpay se hui hai
     const expectedSignature = crypto
       .createHmac('sha256', keySecret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -43,17 +50,37 @@ export async function POST(req: NextRequest) {
 
     const { data: optimization, error } = await supabaseAdmin
       .from('optimizations')
-      .update({ payment_status: 'paid' })
+      .select('*, audits(user_id)')
       .eq('id', optimizationId)
-      .select()
       .single();
 
     if (error || !optimization) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    // Kaunsa platform connect hai uske hisaab se fix push karo —
-    // WordPress ho ya Shopify, dono independent connections hain ek user ke liye
+    // Razorpay ke apne stored order data se priceType check karte hain —
+    // yeh client se nahi aata, isliye tamper-proof hai
+    try {
+      const razorpay = getRazorpay();
+      const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
+      const priceType = (razorpayOrder.notes as any)?.priceType;
+      const userId = (optimization as any).audits?.user_id;
+
+      if (priceType === 'intro' && userId) {
+        await supabaseAdmin
+          .from('profiles')
+          .update({ intro_price_used: true })
+          .eq('id', userId);
+      }
+    } catch (e) {
+      console.error('Intro-price flag update failed (non-blocking):', e);
+    }
+
+    await supabaseAdmin
+      .from('optimizations')
+      .update({ payment_status: 'paid' })
+      .eq('id', optimizationId);
+
     const pushResult = optimization.wordpress_connection_id
       ? await pushFixToWordPress(supabaseAdmin, optimization)
       : optimization.shopify_connection_id
@@ -98,8 +125,6 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
     return { ok: false, error: 'WordPress connection not found' };
   }
 
-  // Password ab DB mein encrypted (AES-256-GCM) format mein save hoti hai —
-  // WordPress ko Basic Auth bhejne se pehle usko decrypt karna zaroori hai.
   let plainPassword: string;
   try {
     plainPassword = decrypt(wpConnection.wp_app_password);
@@ -206,8 +231,6 @@ async function pushFixToShopify(supabaseAdmin: any, optimization: any) {
 function buildShopifyFixPayload(fixType: string): { endpoint: string; body: any } {
   switch (fixType) {
     case 'schema_markup':
-      // Shopify pages ke liye direct <script> inject nahi hota — iske bajaye
-      // ScriptTag API se site-wide JSON-LD schema script load karwate hain
       return {
         endpoint: 'script_tags.json',
         body: {
