@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
     const html = buildReportHtml(before, after, agencyName);
     const pdfBuffer = await generatePdfBuffer(html);
 
-    return new NextResponse(pdfBuffer, {
+    // Fix: Buffer ko Uint8Array mein convert karo taaki BodyInit type match kare
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${before.brandName.replace(/\s+/g, '_')}_Before_After_Report.pdf"`,
