@@ -19,7 +19,10 @@ export async function POST(req: NextRequest) {
 
     // Pehle related data delete karo (foreign key constraints ki wajah se order zaroori hai)
     await supabase.from('wordpress_connections').delete().eq('user_id', userId);
+    await supabase.from('shopify_connections').delete().eq('user_id', userId); // FIX: pehle missing tha
     await supabase.from('gbp_connections').delete().eq('user_id', userId);
+    await supabase.from('agency_branding').delete().eq('user_id', userId); // FIX: pehle missing tha
+    await supabase.from('push_subscriptions').delete().eq('user_id', userId); // FIX: pehle missing tha
 
     const { data: userAudits } = await supabase.from('audits').select('id').eq('user_id', userId);
     const auditIds = (userAudits ?? []).map((a) => a.id);
