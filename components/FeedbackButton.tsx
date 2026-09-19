@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Lightbulb, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function FeedbackButton() {
@@ -40,14 +41,18 @@ export default function FeedbackButton() {
         onClick={() => setOpen(true)}
         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
       >
-        💡 Share Your Thoughts
+        <Lightbulb size={16} />
+        Share Your Thoughts
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center">
           <div className="bg-white dark:bg-stone-900 rounded-t-2xl sm:rounded-2xl p-5 w-full sm:w-96 max-w-full">
             {sent ? (
-              <p className="text-center text-green-600 dark:text-green-400 py-6">✅ Bhej diya, dhanyawad!</p>
+              <p className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400 py-6">
+                <CheckCircle2 size={20} />
+                Bhej diya, dhanyawad!
+              </p>
             ) : (
               <>
                 <h3 className="font-semibold mb-3 text-stone-900 dark:text-stone-100">Share Your Thoughts</h3>
