@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import LanguageSelect from './LanguageSelect';
+import HamburgerMenu from './HamburgerMenu';
 
 export default function GlobalHeader() {
   return (
@@ -11,6 +12,7 @@ export default function GlobalHeader() {
       </Link>
       <div className="flex items-center gap-3 flex-shrink-0">
         <LanguageSelect />
+        <HamburgerMenu />
       </div>
     </header>
   );
