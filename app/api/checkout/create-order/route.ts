@@ -20,7 +20,8 @@ function getRazorpay() {
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
 }
 
-const FIX_NOW_AMOUNT = 49900; // ₹499 in paise
+const INTRO_AMOUNT = 100; // ₹1 in paise — sirf pehli baar milta hai (account ki poori life mein ek baar)
+const REGULAR_FIX_AMOUNT = 9900; // ₹99 in paise — dusri baar se one-time fix ka normal price
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const { data: optimization, error } = await supabaseAdmin
       .from('optimizations')
-      .select('*')
+      .select('*, audits(user_id)')
       .eq('id', optimizationId)
       .single();
 
@@ -44,10 +45,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
+    const userId = (optimization as any).audits?.user_id;
+    if (!userId) {
+      return NextResponse.json({ error: 'User not linked to this optimization' }, { status: 400 });
+    }
+
+    // Price sirf yahin, server par decide hoti hai — frontend se koi bhi
+    // amount tamper nahi kar sakta, chahe DevTools se try kare
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('intro_price_used')
+      .eq('id', userId)
+      .single();
+
+    const isIntroEligible = !profile?.intro_price_used;
+    const amount = isIntroEligible ? INTRO_AMOUNT : REGULAR_FIX_AMOUNT;
+
     const order = await razorpay.orders.create({
-      amount: FIX_NOW_AMOUNT,
+      amount,
       currency: 'INR',
       receipt: `fixnow_${optimizationId}`,
+      notes: {
+        userId,
+        priceType: isIntroEligible ? 'intro' : 'regular',
+      },
     });
 
     return NextResponse.json({
@@ -55,6 +76,7 @@ export async function POST(req: NextRequest) {
       amount: order.amount,
       currency: order.currency,
       razorpayOrderId: order.id,
+      priceType: isIntroEligible ? 'intro' : 'regular',
     });
   } catch (err: any) {
     console.error('create-order error:', err);
