@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
 import { useIntroPrice } from '@/lib/useIntroPrice';
+import { CheckCircle2, XCircle, AlertTriangle, MapPin, Globe, Zap } from 'lucide-react';
 import type { AuditReport } from '@/types';
 
 export default function DashboardPage() {
@@ -19,21 +20,21 @@ export default function DashboardPage() {
 function mentionBadge(mentioned: boolean | null) {
   if (mentioned === true) {
     return (
-      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-        ✅ Mentioned
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+        <CheckCircle2 size={13} /> Mentioned
       </span>
     );
   }
   if (mentioned === false) {
     return (
-      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-        ❌ Not mentioned
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+        <XCircle size={13} /> Not mentioned
       </span>
     );
   }
   return (
-    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-      ⚠️ Could not check
+    <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+      <AlertTriangle size={13} /> Could not check
     </span>
   );
 }
@@ -152,7 +153,7 @@ function DashboardContent() {
               activeTab === 'maps' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500 dark:text-stone-400'
             }`}
           >
-            📍 Maps Visibility
+            <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> Maps Visibility</span>
           </button>
           <button
             onClick={() => setActiveTab('website')}
@@ -160,7 +161,7 @@ function DashboardContent() {
               activeTab === 'website' ? 'border-b-2 border-[#8B85E3] text-[#8B85E3]' : 'text-gray-500 dark:text-stone-400'
             }`}
           >
-            🌐 Website AI Score
+            <span className="inline-flex items-center gap-1.5"><Globe size={15} /> Website AI Score</span>
           </button>
         </div>
       )}
@@ -198,7 +199,7 @@ function DashboardContent() {
             title="Google Business Profile API approval pending — jald hi live hoga"
             className="w-full bg-stone-300 dark:bg-stone-700 text-stone-500 dark:text-stone-400 rounded-lg py-3 font-semibold cursor-not-allowed"
           >
-            ⚡ Auto-Fix Google Maps Listing — {mapsFixPrice} (जल्द आ रहा है)
+            <span className="inline-flex items-center gap-2"><Zap size={16} /> Auto-Fix Google Maps Listing — {mapsFixPrice} (जल्द आ रहा है)</span>
           </button>
         </section>
       )}
@@ -255,7 +256,13 @@ function DashboardContent() {
                 </p>
                 <p className="text-sm text-gray-600 dark:text-stone-400">
                   Knowledge Panel:{' '}
-                  {g.appears_in_overview ? '✅ Appears' : '❌ Not shown for this query'}
+                  <span className="inline-flex items-center gap-1 align-middle">
+                    {g.appears_in_overview ? (
+                      <><CheckCircle2 size={14} className="text-green-600" /> Appears</>
+                    ) : (
+                      <><XCircle size={14} className="text-red-500" /> Not shown for this query</>
+                    )}
+                  </span>
                 </p>
                 {g.ranked_position && (
                   <p className="text-sm text-gray-600 dark:text-stone-400">
