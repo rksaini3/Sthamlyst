@@ -5,6 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
+import GapReportButton from '@/components/GapReportButton';
+import BeforeAfterReportButton from '@/components/BeforeAfterReportButton';
+import VerifiedIdButton from '@/components/VerifiedIdButton';
+import Link from 'next/link';
 import { useIntroPrice } from '@/lib/useIntroPrice';
 import { CheckCircle2, XCircle, AlertTriangle, MapPin, Globe, Zap } from 'lucide-react';
 import type { AuditReport } from '@/types';
@@ -48,6 +52,10 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => '\\' + c);
+}
+
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -56,6 +64,10 @@ function DashboardContent() {
   const [report, setReport] = useState<AuditReport | null>(null);
   const [optimizationId, setOptimizationId] = useState<string | null>(null);
   const [matchedSite, setMatchedSite] = useState<string | null>(null);
+  const [isFirstAudit, setIsFirstAudit] = useState(false);
+  const [fixApplied, setFixApplied] = useState(false);
+  const [hasSite, setHasSite] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'maps' | 'website'>('maps');
@@ -93,37 +105,102 @@ function DashboardContent() {
       .select('*')
       .eq('audit_id', id);
 
-    if (audit.has_website) {
-      const { data: userData } = await supabase.auth.getUser();
-      const { data: allConnections } = await supabase
-        .from('wordpress_connections')
-        .select('id, site_url')
-        .eq('user_id', userData.user?.id ?? '');
+    // Isi brand+city+website ke saare audits (pehla audit pehchanne aur purana fix dhoondhne ke liye)
+    let sameBrandQ = supabase
+      .from('audits')
+      .select('id, created_at')
+      .ilike('brand_name', escapeLike(audit.brand_name))
+      .eq('target_city', audit.target_city)
+      .eq('status', 'complete');
+    sameBrandQ = audit.website_url
+      ? sameBrandQ.eq('website_url', audit.website_url)
+      : sameBrandQ.is('website_url', null);
+    const { data: sameBrand } = await sameBrandQ;
+    const sameBrandList = sameBrand ?? [];
+    const earlier = sameBrandList.filter(
+      (a) => new Date(a.created_at).getTime() < new Date(audit.created_at).getTime()
+    );
+    setIsFirstAudit(earlier.length === 0);
 
-      const auditDomain = getDomain(audit.website_url);
-      let chosenConnection = null;
-
-      if (allConnections && allConnections.length > 0) {
-        chosenConnection =
-          allConnections.find((c) => getDomain(c.site_url) === auditDomain) ??
-          allConnections[0];
-      }
-
-      setMatchedSite(chosenConnection?.site_url ?? null);
-
-      const { data: optimization } = await supabase
+    let brandFixed = false;
+    if (sameBrandList.length > 0) {
+      const { data: appliedRows } = await supabase
         .from('optimizations')
-        .insert({
-          audit_id: id,
-          wordpress_connection_id: chosenConnection?.id ?? null,
-          fix_type: 'schema_markup',
-          status: 'pending',
-          payment_status: 'unpaid',
-        })
-        .select()
-        .single();
+        .select('id')
+        .in('audit_id', sameBrandList.map((a) => a.id))
+        .eq('status', 'applied')
+        .eq('payment_status', 'paid')
+        .limit(1);
+      brandFixed = !!appliedRows && appliedRows.length > 0;
+    }
+    setFixApplied(brandFixed);
 
-      setOptimizationId(optimization?.id ?? null);
+    if (audit.has_website && !brandFixed) {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      setLoggedIn(!!uid);
+
+      if (uid) {
+        const { data: wpConns } = await supabase
+          .from('wordpress_connections')
+          .select('id, site_url')
+          .eq('user_id', uid);
+        const { data: shConns } = await supabase
+          .from('shopify_connections')
+          .select('id, shop_domain')
+          .eq('user_id', uid);
+
+        const auditDomain = getDomain(audit.website_url);
+        const chosenWp =
+          (wpConns ?? []).find((c) => getDomain(c.site_url) === auditDomain) ?? (wpConns ?? [])[0] ?? null;
+        const chosenShopify =
+          (shConns ?? []).find((c) => getDomain(`https://${c.shop_domain}`) === auditDomain) ??
+          (shConns ?? [])[0] ??
+          null;
+
+        const wpId: string | null = chosenWp?.id ?? null;
+        const shId: string | null = wpId ? null : chosenShopify?.id ?? null;
+        setHasSite(!!(wpId || shId));
+        setMatchedSite(wpId ? chosenWp?.site_url ?? null : chosenShopify?.shop_domain ?? null);
+
+        // Har page-load par naya optimization row nahi banate — pehle wala reuse karte hain
+        const { data: existingOpt } = await supabase
+          .from('optimizations')
+          .select('id, payment_status, wordpress_connection_id, shopify_connection_id')
+          .eq('audit_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let optId: string | null = existingOpt?.id ?? null;
+
+        if (!existingOpt) {
+          const { data: created } = await supabase
+            .from('optimizations')
+            .insert({
+              audit_id: id,
+              wordpress_connection_id: wpId,
+              shopify_connection_id: shId,
+              fix_type: 'schema_markup',
+              status: 'pending',
+              payment_status: 'unpaid',
+            })
+            .select()
+            .single();
+          optId = created?.id ?? null;
+        } else if (
+          existingOpt.payment_status !== 'paid' &&
+          (existingOpt.wordpress_connection_id !== wpId || existingOpt.shopify_connection_id !== shId)
+        ) {
+          // Ho sakta hai user ne baad mein site connect ki ho — pending optimization ko update karo
+          await supabase
+            .from('optimizations')
+            .update({ wordpress_connection_id: wpId, shopify_connection_id: shId })
+            .eq('id', existingOpt.id);
+        }
+
+        setOptimizationId(optId);
+      }
     }
 
     setReport({
@@ -137,6 +214,7 @@ function DashboardContent() {
   if (loading) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">Loading your report…</main>;
   if (error || !report) return <main className="p-6 dark:bg-[#0B0C1A] dark:text-stone-100 min-h-screen">{error}</main>;
 
+  const auditAgeDays = Math.floor((Date.now() - new Date(report.created_at).getTime()) / (24 * 60 * 60 * 1000));
   const localMentions = report.ai_mentions.filter((m) => m.is_local);
   const websiteMentions = report.ai_mentions.filter((m) => !m.is_local);
 
@@ -144,6 +222,15 @@ function DashboardContent() {
     <main className="min-h-screen px-6 py-10 max-w-2xl mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100">
       <h1 className="text-2xl font-bold mb-1">{report.brand_name}</h1>
       <p className="text-gray-500 dark:text-stone-400 mb-6">{report.target_city}</p>
+
+      <GapReportButton auditId={report.id} brandName={report.brand_name} isFirstAudit={isFirstAudit} />
+
+      {auditAgeDays >= 30 && (
+        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200">
+          Ye audit {auditAgeDays} din purana hai. AI assistants ke jawab samay ke saath badalte rehte hain, isliye naya
+          score dekhne ke liye dobara audit chalayein. Har mahine automatic monitoring chahiye to Pro plan dekhein.
+        </div>
+      )}
 
       {report.has_website && (
         <div className="flex border-b border-stone-200 dark:border-stone-800 mb-6">
@@ -292,18 +379,43 @@ function DashboardContent() {
 
           <section>
             <h2 className="font-semibold text-lg mb-2">Fix Issues Automatically</h2>
-            {optimizationId ? (
+            {fixApplied ? (
+              <div className="space-y-3">
+                <p className="text-sm text-green-700 dark:text-green-400">
+                  Is brand par fix apply ho chuka hai. Ab Before/After report download kar sakte hain.
+                </p>
+                <BeforeAfterReportButton
+                  currentAuditId={report.id}
+                  brandName={report.brand_name}
+                  city={report.target_city}
+                  websiteUrl={report.website_url}
+                />
+                <VerifiedIdButton auditId={report.id} />
+              </div>
+            ) : optimizationId && hasSite ? (
               <>
                 {matchedSite && (
                   <p className="text-xs text-gray-500 dark:text-stone-400 mb-2">
                     Ye fix <span className="font-medium">{matchedSite}</span> par apply hoga
                   </p>
                 )}
-                <FixButton auditId={report.id} optimizationId={optimizationId} />
+                <FixButton
+                  auditId={report.id}
+                  optimizationId={optimizationId}
+                  onApplied={() => setFixApplied(true)}
+                />
               </>
+            ) : !loggedIn ? (
+              <p className="text-sm text-gray-500 dark:text-stone-400">
+                Auto-fix ke liye pehle login karein aur apni WordPress ya Shopify site connect karein.
+              </p>
             ) : (
               <p className="text-sm text-gray-500 dark:text-stone-400">
-                Connect your WordPress site in Optimizer first to enable auto-fix.
+                Auto-fix ke liye pehle{' '}
+                <Link href="/optimizer" className="text-[#8B85E3] underline">
+                  Optimizer
+                </Link>{' '}
+                mein apni WordPress ya Shopify site connect karein. Site connect hone se pehle payment nahi liya jayega.
               </p>
             )}
           </section>
