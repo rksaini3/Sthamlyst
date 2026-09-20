@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { decrypt } from '@/lib/crypto';
+import { applyWordPressFixes, applyShopifyFixes, type FixResult } from '@/lib/siteFixes';
+import type { BrandInfo } from '@/lib/fixContent';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60; // FAQ generation + site API calls mein thoda time lag sakta hai
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,6 +25,13 @@ function getRazorpay() {
   });
 }
 
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
@@ -33,6 +45,10 @@ export async function POST(req: NextRequest) {
 
     const optimizationId = sthamlyOrderIds?.[0];
 
+    if (!optimizationId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json({ error: 'Payment details incomplete' }, { status: 400 });
+    }
+
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret) {
       throw new Error('RAZORPAY_KEY_SECRET missing (check Vercel Environment Variables)');
@@ -44,13 +60,13 @@ export async function POST(req: NextRequest) {
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    if (expectedSignature !== razorpay_signature) {
+    if (!safeEqual(expectedSignature, String(razorpay_signature))) {
       return NextResponse.json({ error: 'Signature mismatch' }, { status: 400 });
     }
 
     const { data: optimization, error } = await supabaseAdmin
       .from('optimizations')
-      .select('*, audits(user_id)')
+      .select('*, audits(user_id, brand_name, target_city, website_url)')
       .eq('id', optimizationId)
       .single();
 
@@ -58,22 +74,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    // Razorpay ke apne stored order data se priceType check karte hain —
-    // yeh client se nahi aata, isliye tamper-proof hai
-    try {
-      const razorpay = getRazorpay();
-      const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
-      const priceType = (razorpayOrder.notes as any)?.priceType;
-      const userId = (optimization as any).audits?.user_id;
+    // Idempotency: same payment dobara aaye to fix dobara push nahi karte
+    if (optimization.payment_status === 'paid' && optimization.status === 'applied') {
+      return NextResponse.json({ success: true, alreadyApplied: true });
+    }
 
-      if (priceType === 'intro' && userId) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ intro_price_used: true })
-          .eq('id', userId);
-      }
+    // Razorpay ke apne stored order data se check karte hain (client se nahi aata, isliye tamper-proof)
+    let razorpayOrder: any;
+    try {
+      razorpayOrder = await getRazorpay().orders.fetch(razorpay_order_id);
     } catch (e) {
-      console.error('Intro-price flag update failed (non-blocking):', e);
+      console.error('Razorpay order fetch failed:', e);
+      return NextResponse.json({ error: 'Payment order verify nahi ho paya, thodi der baad try karein' }, { status: 502 });
+    }
+
+    // Ye payment isi optimization ke liye bana tha? (ek payment se dusre optimization par fix chalane se rokta hai)
+    if (razorpayOrder.receipt !== `fixnow_${optimizationId}`) {
+      return NextResponse.json({ error: 'Payment is fix se match nahi karta' }, { status: 400 });
+    }
+
+    const audit = (optimization as any).audits;
+    const userId = audit?.user_id;
+    const priceType = razorpayOrder.notes?.priceType;
+
+    if (priceType === 'intro' && userId) {
+      const { error: profileErr } = await supabaseAdmin
+        .from('profiles')
+        .update({ intro_price_used: true })
+        .eq('id', userId);
+      if (profileErr) console.error('Intro-price flag update failed (non-blocking):', profileErr.message);
     }
 
     await supabaseAdmin
@@ -81,18 +110,30 @@ export async function POST(req: NextRequest) {
       .update({ payment_status: 'paid' })
       .eq('id', optimizationId);
 
-    const pushResult = optimization.wordpress_connection_id
-      ? await pushFixToWordPress(supabaseAdmin, optimization)
-      : optimization.shopify_connection_id
-      ? await pushFixToShopify(supabaseAdmin, optimization)
-      : { ok: false, error: 'No connected site (WordPress/Shopify) found for this account' };
+    const brand: BrandInfo = {
+      brandName: audit?.brand_name ?? '',
+      city: audit?.target_city ?? '',
+      websiteUrl: audit?.website_url ?? null,
+    };
+
+    let pushResult: FixResult;
+    if (optimization.wordpress_connection_id) {
+      pushResult = await pushFixToWordPress(supabaseAdmin, optimization, brand);
+    } else if (optimization.shopify_connection_id) {
+      pushResult = await pushFixToShopify(supabaseAdmin, optimization, brand);
+    } else {
+      pushResult = { ok: false, error: 'No connected site (WordPress/Shopify) found for this account' };
+    }
 
     if (!pushResult.ok) {
       await supabaseAdmin
         .from('optimizations')
         .update({ status: 'failed' })
         .eq('id', optimizationId);
-      return NextResponse.json({ error: pushResult.error }, { status: 500 });
+      return NextResponse.json(
+        { error: `Payment mil gaya par fix apply nahi hua: ${pushResult.error}. Support se sampark karein, dobara payment nahi lena padega.` },
+        { status: 500 }
+      );
     }
 
     await supabaseAdmin
@@ -110,11 +151,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
-  if (!optimization.wordpress_connection_id) {
-    return { ok: false, error: 'No WordPress site connected for this account' };
-  }
-
+async function pushFixToWordPress(supabaseAdmin: any, optimization: any, brand: BrandInfo): Promise<FixResult> {
   const { data: wpConnection } = await supabaseAdmin
     .from('wordpress_connections')
     .select('*')
@@ -133,56 +170,23 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any) {
     return { ok: false, error: 'Saved WordPress credentials corrupt ho gayi hain — site ko dobara connect karein' };
   }
 
-  const payload = buildWordPressFixPayload(optimization.fix_type);
-  const auth = Buffer.from(`${wpConnection.wp_username}:${plainPassword}`).toString('base64');
+  const result = await applyWordPressFixes(
+    { site_url: wpConnection.site_url, wp_username: wpConnection.wp_username, password: plainPassword },
+    brand,
+    optimization.fix_type
+  );
 
-  const wpRes = await fetch(`${wpConnection.site_url}/wp-json/wp/v2/pages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!wpRes.ok) {
-    const errText = await wpRes.text();
-    return { ok: false, error: `WordPress update failed: ${errText}` };
+  if (result.ok) {
+    await supabaseAdmin
+      .from('wordpress_connections')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', wpConnection.id);
   }
 
-  await supabaseAdmin
-    .from('wordpress_connections')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('id', wpConnection.id);
-
-  return { ok: true };
+  return result;
 }
 
-function buildWordPressFixPayload(fixType: string) {
-  switch (fixType) {
-    case 'schema_markup':
-      return {
-        title: 'AI Visibility Schema Update',
-        content:
-          '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization"}</script>',
-        status: 'publish',
-      };
-    case 'faq_section':
-      return {
-        title: 'FAQ',
-        content: '<h2>Frequently Asked Questions</h2>',
-        status: 'publish',
-      };
-    default:
-      return { title: 'Update', content: '', status: 'draft' };
-  }
-}
-
-async function pushFixToShopify(supabaseAdmin: any, optimization: any) {
-  if (!optimization.shopify_connection_id) {
-    return { ok: false, error: 'No Shopify store connected for this account' };
-  }
-
+async function pushFixToShopify(supabaseAdmin: any, optimization: any, brand: BrandInfo): Promise<FixResult> {
   const { data: shopifyConnection } = await supabaseAdmin
     .from('shopify_connections')
     .select('*')
@@ -201,60 +205,19 @@ async function pushFixToShopify(supabaseAdmin: any, optimization: any) {
     return { ok: false, error: 'Saved Shopify credentials corrupt ho gayi hain — store ko dobara connect karein' };
   }
 
-  const { endpoint, body } = buildShopifyFixPayload(optimization.fix_type);
-
-  const shopifyRes = await fetch(
-    `https://${shopifyConnection.shop_domain}/admin/api/2024-01/${endpoint}`,
-    {
-      method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': plainToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    }
+  const result = await applyShopifyFixes(
+    { shop_domain: shopifyConnection.shop_domain, token: plainToken },
+    brand,
+    optimization.fix_type,
+    optimization.id
   );
 
-  if (!shopifyRes.ok) {
-    const errText = await shopifyRes.text();
-    return { ok: false, error: `Shopify update failed: ${errText}` };
+  if (result.ok) {
+    await supabaseAdmin
+      .from('shopify_connections')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', shopifyConnection.id);
   }
 
-  await supabaseAdmin
-    .from('shopify_connections')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('id', shopifyConnection.id);
-
-  return { ok: true };
-}
-
-function buildShopifyFixPayload(fixType: string): { endpoint: string; body: any } {
-  switch (fixType) {
-    case 'schema_markup':
-      return {
-        endpoint: 'script_tags.json',
-        body: {
-          script_tag: {
-            event: 'onload',
-            src: 'https://www.sthamly.com/schema/organization.js',
-          },
-        },
-      };
-    case 'faq_section':
-      return {
-        endpoint: 'pages.json',
-        body: {
-          page: {
-            title: 'FAQ',
-            body_html: '<h2>Frequently Asked Questions</h2>',
-            published: true,
-          },
-        },
-      };
-    default:
-      return {
-        endpoint: 'pages.json',
-        body: { page: { title: 'Update', body_html: '', published: false } },
-      };
-  }
+  return result;
 }
