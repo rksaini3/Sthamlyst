@@ -48,6 +48,10 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // PDF report (Puppeteer + serverless Chromium) ko webpack bundle nahi karna — warna runtime pe binary nahi milti
+    serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  },
   images: {
     remotePatterns: [
       {
