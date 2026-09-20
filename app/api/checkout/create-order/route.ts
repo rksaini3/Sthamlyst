@@ -50,6 +50,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not linked to this optimization' }, { status: 400 });
     }
 
+    // Paisa lene se PEHLE check: site connected hai? (warna customer pay karke bhi fix nahi paata)
+    if (!optimization.wordpress_connection_id && !optimization.shopify_connection_id) {
+      return NextResponse.json(
+        { error: 'Pehle apni WordPress ya Shopify site connect karein — bina site ke payment nahi liya jayega.' },
+        { status: 400 }
+      );
+    }
+
+    if (optimization.payment_status === 'paid') {
+      return NextResponse.json(
+        {
+          error:
+            optimization.status === 'applied'
+              ? 'Ye fix pehle hi apply ho chuka hai.'
+              : 'Is fix ka payment ho chuka hai par fix apply nahi hua — support se sampark karein, dobara payment nahi lena padega.',
+        },
+        { status: 409 }
+      );
+    }
+
     // Price sirf yahin, server par decide hoti hai — frontend se koi bhi
     // amount tamper nahi kar sakta, chahe DevTools se try kare
     const { data: profile } = await supabaseAdmin
