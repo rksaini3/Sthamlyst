@@ -160,7 +160,7 @@ function computeGoogleScore(appearsInOverview: boolean, rankedPosition: number |
 
 export async function POST(req: NextRequest) {
   try {
-    const { brandName, city, websiteUrl, userId } = await req.json();
+    const { brandName, city, websiteUrl, userId, force } = await req.json();
     if (!brandName || !city) {
       return NextResponse.json({ error: 'brandName and city are required' }, { status: 400 });
     }
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     let cacheQuery = supabase
       .from('audits')
       .select('id, created_at')
-      .ilike('brand_name', brandName.trim())
+      .ilike('brand_name', brandName.trim().replace(/[\\%_]/g, (c: string) => '\\' + c))
       .eq('target_city', city.trim())
       .eq('has_website', hasWebsite)
       .eq('status', 'complete')
@@ -185,7 +185,8 @@ export async function POST(req: NextRequest) {
 
     const { data: cachedAudit } = await cacheQuery.maybeSingle();
 
-    if (cachedAudit) {
+    // force=true: fix ke baad fresh re-audit chahiye (Before/After report ke liye) — cache skip
+    if (cachedAudit && !force) {
       const ageMs = Date.now() - new Date(cachedAudit.created_at).getTime();
       if (ageMs < CACHE_FRESHNESS_HOURS * 60 * 60 * 1000) {
         return NextResponse.json({ auditId: cachedAudit.id, cached: true });
@@ -282,9 +283,19 @@ export async function POST(req: NextRequest) {
         const appearsInOverview = overviewText.toLowerCase().includes(brandName.toLowerCase());
         const organicResults: any[] = serperData.organic ?? [];
 
-        const rankedIndex = organicResults.findIndex((r) =>
-          r.link?.toLowerCase().includes(brandName.toLowerCase())
-        );
+        const brandSlug = brandName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let siteHost: string | null = null;
+        try {
+          siteHost = websiteUrl ? new URL(websiteUrl).hostname.replace(/^www\./, '').toLowerCase() : null;
+        } catch {
+          siteHost = null;
+        }
+        const rankedIndex = organicResults.findIndex((r) => {
+          const link = String(r.link ?? '').toLowerCase();
+          if (!link) return false;
+          if (siteHost && link.includes(siteHost)) return true;
+          return brandSlug.length > 0 && link.replace(/[^a-z0-9]/g, '').includes(brandSlug);
+        });
         const rankedPosition = rankedIndex >= 0 ? rankedIndex + 1 : null;
 
         googleScore = computeGoogleScore(appearsInOverview, rankedPosition);
