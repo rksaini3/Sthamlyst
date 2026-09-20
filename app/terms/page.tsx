@@ -37,7 +37,7 @@ export default function TermsPage() {
         <div>
           <h2 className="font-semibold text-lg mb-2">4. Payments and Refunds</h2>
           <p>
-            One-time fixes (₹499) and subscription plans (₹999/month) are processed via
+            One-time fixes and subscription plans (₹999/month) are processed via
             Razorpay. Once a fix has been successfully applied to your connected
             website or store, the fee is non-refundable, as the service (code/markup
             insertion) has been delivered. If a payment succeeds but the fix fails to
