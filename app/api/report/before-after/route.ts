@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     }
 
     const fixes = await loadFixesSince(supabase, before);
-    const html = buildReportHtml(before, after, agencyName, fixes);
+    const agency = typeof agencyName === 'string' ? agencyName.trim().slice(0, 60) : undefined;
+    const html = buildReportHtml(before, after, agency || undefined, fixes);
     const pdf = await generatePdfBuffer(html);
 
     return new NextResponse(new Uint8Array(pdf), {
