@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audit not found' }, { status: 404 });
     }
 
-    const html = buildGapReportHtml(snapshot, agencyName);
+    const agency = typeof agencyName === 'string' ? agencyName.trim().slice(0, 60) : undefined;
+    const html = buildGapReportHtml(snapshot, agency || undefined);
     const pdf = await generatePdfBuffer(html);
 
     return new NextResponse(new Uint8Array(pdf), {
