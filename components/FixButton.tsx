@@ -7,9 +7,10 @@ import { useIntroPrice } from '@/lib/useIntroPrice';
 interface Props {
   auditId: string;
   optimizationId: string;
+  onApplied?: () => void;
 }
 
-export default function FixButton({ auditId, optimizationId }: Props) {
+export default function FixButton({ auditId, optimizationId, onApplied }: Props) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const { amountLabel } = useIntroPrice();
@@ -30,6 +31,7 @@ export default function FixButton({ auditId, optimizationId }: Props) {
         onSuccess: () => {
           setMessage('✅ Fix applied to your website!');
           setLoading(false);
+          if (onApplied) onApplied();
         },
         onFailure: (msg: any) => {
           setMessage(typeof msg === 'string' ? msg : 'Payment failed');
