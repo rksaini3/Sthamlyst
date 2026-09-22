@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Paisa lene se PEHLE check: site connected hai? (warna customer pay karke bhi fix nahi paata)
-    if (!optimization.wordpress_connection_id && !optimization.shopify_connection_id) {
+    if (!optimization.wordpress_connection_id) {
       return NextResponse.json(
-        { error: 'Pehle apni WordPress ya Shopify site connect karein — bina site ke payment nahi liya jayega.' },
+        { error: 'Pehle apni WordPress site connect karein — bina site ke payment nahi liya jayega.' },
         { status: 400 }
       );
     }
