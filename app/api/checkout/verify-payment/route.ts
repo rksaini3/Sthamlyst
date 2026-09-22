@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { decrypt } from '@/lib/crypto';
-import { applyWordPressFixes, applyShopifyFixes, type FixResult } from '@/lib/siteFixes';
+import { applyWordPressFixes, type FixResult } from '@/lib/siteFixes';
 import type { BrandInfo } from '@/lib/fixContent';
 
 export const runtime = 'nodejs';
@@ -119,10 +119,8 @@ export async function POST(req: NextRequest) {
     let pushResult: FixResult;
     if (optimization.wordpress_connection_id) {
       pushResult = await pushFixToWordPress(supabaseAdmin, optimization, brand);
-    } else if (optimization.shopify_connection_id) {
-      pushResult = await pushFixToShopify(supabaseAdmin, optimization, brand);
     } else {
-      pushResult = { ok: false, error: 'No connected site (WordPress/Shopify) found for this account' };
+      pushResult = { ok: false, error: 'Koi connected WordPress site nahi mili' };
     }
 
     if (!pushResult.ok) {
@@ -181,42 +179,6 @@ async function pushFixToWordPress(supabaseAdmin: any, optimization: any, brand: 
       .from('wordpress_connections')
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', wpConnection.id);
-  }
-
-  return result;
-}
-
-async function pushFixToShopify(supabaseAdmin: any, optimization: any, brand: BrandInfo): Promise<FixResult> {
-  const { data: shopifyConnection } = await supabaseAdmin
-    .from('shopify_connections')
-    .select('*')
-    .eq('id', optimization.shopify_connection_id)
-    .single();
-
-  if (!shopifyConnection) {
-    return { ok: false, error: 'Shopify connection not found' };
-  }
-
-  let plainToken: string;
-  try {
-    plainToken = decrypt(shopifyConnection.access_token);
-  } catch (e) {
-    console.error('Shopify token decrypt failed:', e);
-    return { ok: false, error: 'Saved Shopify credentials corrupt ho gayi hain — store ko dobara connect karein' };
-  }
-
-  const result = await applyShopifyFixes(
-    { shop_domain: shopifyConnection.shop_domain, token: plainToken },
-    brand,
-    optimization.fix_type,
-    optimization.id
-  );
-
-  if (result.ok) {
-    await supabaseAdmin
-      .from('shopify_connections')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('id', shopifyConnection.id);
   }
 
   return result;
