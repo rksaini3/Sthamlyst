@@ -7,7 +7,6 @@ import AuditGraph from '@/components/AuditGraph';
 import FixButton from '@/components/FixButton';
 import GapReportButton from '@/components/GapReportButton';
 import BeforeAfterReportButton from '@/components/BeforeAfterReportButton';
-import VerifiedIdButton from '@/components/VerifiedIdButton';
 import Link from 'next/link';
 import { useIntroPrice } from '@/lib/useIntroPrice';
 import { CheckCircle2, XCircle, AlertTriangle, MapPin, Globe, Zap } from 'lucide-react';
@@ -68,10 +67,30 @@ function DashboardContent() {
   const [fixApplied, setFixApplied] = useState(false);
   const [hasSite, setHasSite] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [agencyName, setAgencyName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'maps' | 'website'>('maps');
   const { amountLabel: mapsFixPrice } = useIntroPrice();
+
+  // Agency ka naam (PDF par "prepared by" ke roop mein) — is browser mein yaad rakhta hai
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('sthamly_agency_name');
+      if (saved) setAgencyName(saved);
+    } catch {
+      /* localStorage available nahi to koi baat nahi */
+    }
+  }, []);
+
+  function updateAgencyName(value: string) {
+    setAgencyName(value);
+    try {
+      window.localStorage.setItem('sthamly_agency_name', value);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (!auditId) {
@@ -145,28 +164,19 @@ function DashboardContent() {
           .from('wordpress_connections')
           .select('id, site_url')
           .eq('user_id', uid);
-        const { data: shConns } = await supabase
-          .from('shopify_connections')
-          .select('id, shop_domain')
-          .eq('user_id', uid);
 
         const auditDomain = getDomain(audit.website_url);
         const chosenWp =
           (wpConns ?? []).find((c) => getDomain(c.site_url) === auditDomain) ?? (wpConns ?? [])[0] ?? null;
-        const chosenShopify =
-          (shConns ?? []).find((c) => getDomain(`https://${c.shop_domain}`) === auditDomain) ??
-          (shConns ?? [])[0] ??
-          null;
 
         const wpId: string | null = chosenWp?.id ?? null;
-        const shId: string | null = wpId ? null : chosenShopify?.id ?? null;
-        setHasSite(!!(wpId || shId));
-        setMatchedSite(wpId ? chosenWp?.site_url ?? null : chosenShopify?.shop_domain ?? null);
+        setHasSite(!!wpId);
+        setMatchedSite(chosenWp?.site_url ?? null);
 
         // Har page-load par naya optimization row nahi banate — pehle wala reuse karte hain
         const { data: existingOpt } = await supabase
           .from('optimizations')
-          .select('id, payment_status, wordpress_connection_id, shopify_connection_id')
+          .select('id, payment_status, wordpress_connection_id')
           .eq('audit_id', id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -180,7 +190,6 @@ function DashboardContent() {
             .insert({
               audit_id: id,
               wordpress_connection_id: wpId,
-              shopify_connection_id: shId,
               fix_type: 'schema_markup',
               status: 'pending',
               payment_status: 'unpaid',
@@ -188,15 +197,9 @@ function DashboardContent() {
             .select()
             .single();
           optId = created?.id ?? null;
-        } else if (
-          existingOpt.payment_status !== 'paid' &&
-          (existingOpt.wordpress_connection_id !== wpId || existingOpt.shopify_connection_id !== shId)
-        ) {
+        } else if (existingOpt.payment_status !== 'paid' && existingOpt.wordpress_connection_id !== wpId) {
           // Ho sakta hai user ne baad mein site connect ki ho — pending optimization ko update karo
-          await supabase
-            .from('optimizations')
-            .update({ wordpress_connection_id: wpId, shopify_connection_id: shId })
-            .eq('id', existingOpt.id);
+          await supabase.from('optimizations').update({ wordpress_connection_id: wpId }).eq('id', existingOpt.id);
         }
 
         setOptimizationId(optId);
@@ -223,7 +226,26 @@ function DashboardContent() {
       <h1 className="text-2xl font-bold mb-1">{report.brand_name}</h1>
       <p className="text-gray-500 dark:text-stone-400 mb-6">{report.target_city}</p>
 
-      <GapReportButton auditId={report.id} brandName={report.brand_name} isFirstAudit={isFirstAudit} />
+      <div className="mb-3">
+        <label className="block text-xs text-gray-500 dark:text-stone-400 mb-1">
+          Agency / company ka naam (PDF par &quot;prepared by&quot; mein dikhega, optional)
+        </label>
+        <input
+          type="text"
+          value={agencyName}
+          maxLength={60}
+          onChange={(e) => updateAgencyName(e.target.value)}
+          placeholder="Jaise: BrightEdge Marketing"
+          className="w-full rounded-xl border border-stone-300 dark:border-stone-700 bg-transparent px-3 py-2 text-sm"
+        />
+      </div>
+
+      <GapReportButton
+        auditId={report.id}
+        brandName={report.brand_name}
+        isFirstAudit={isFirstAudit}
+        agencyName={agencyName}
+      />
 
       {auditAgeDays >= 30 && (
         <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200">
@@ -389,8 +411,8 @@ function DashboardContent() {
                   brandName={report.brand_name}
                   city={report.target_city}
                   websiteUrl={report.website_url}
+                  agencyName={agencyName}
                 />
-                <VerifiedIdButton auditId={report.id} />
               </div>
             ) : optimizationId && hasSite ? (
               <>
@@ -407,7 +429,7 @@ function DashboardContent() {
               </>
             ) : !loggedIn ? (
               <p className="text-sm text-gray-500 dark:text-stone-400">
-                Auto-fix ke liye pehle login karein aur apni WordPress ya Shopify site connect karein.
+                Auto-fix ke liye pehle login karein aur apni WordPress site connect karein.
               </p>
             ) : (
               <p className="text-sm text-gray-500 dark:text-stone-400">
@@ -415,7 +437,7 @@ function DashboardContent() {
                 <Link href="/optimizer" className="text-[#8B85E3] underline">
                   Optimizer
                 </Link>{' '}
-                mein apni WordPress ya Shopify site connect karein. Site connect hone se pehle payment nahi liya jayega.
+                mein apni WordPress site connect karein. Site connect hone se pehle payment nahi liya jayega.
               </p>
             )}
           </section>
