@@ -371,7 +371,7 @@ export function buildReportHtml(
 // isi cached copy ko reuse karti hain. Version yahan aur package.json mein SAME rakho.
 const CHROMIUM_PACK_URL =
   process.env.CHROMIUM_PACK_URL ||
-  'https://github.com/Sparticuz/chromium/releases/download/v138.0.2/chromium-v138.0.2-pack.tar';
+  'https://github.com/Sparticuz/chromium/releases/download/v138.0.2/chromium-v138.0.2-pack.x64.tar';
 
 // ---------- PDF banane wala ----------
 // Har step alag se try/catch + log karte hain taaki Vercel Function Logs mein
