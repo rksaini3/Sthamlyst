@@ -591,9 +591,14 @@ export async function generatePdfBuffer(html: string, lang: Language = 'en'): Pr
 
   try {
     const page = await browser.newPage();
-    // HTML mein koi script/external resource nahi chahiye — JS band rakhna safe hai
-    await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: 'load' });
+    // Devanagari font runtime par load hota hai (chromium.font()) — usko OS-level
+    // fontconfig mein register hone aur Chromium ke text-shaping engine ko us naye
+    // font ke saath "settle" hone ke liye thoda samay chahiye. Bina is wait ke PDF
+    // capture bahut jaldi ho jaata hai aur poora text hi blank/missing aata hai.
+    if (lang === 'hi') {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
