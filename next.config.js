@@ -51,6 +51,13 @@ const nextConfig = {
   experimental: {
     // PDF report (Puppeteer + serverless Chromium) ko webpack bundle nahi karna — warna runtime pe binary nahi milti
     serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+    // Next.js ka file-tracing khud-ba-khud chromium ki binary files ko Vercel deployment
+    // mein include nahi karta — iske bina function runtime par "Chromium not found" ho
+    // kar crash ho jaata hai (jo PDF download ko "fail" bana deta hai).
+    outputFileTracingIncludes: {
+      '/api/report/gap/route': ['./node_modules/@sparticuz/chromium/**/*'],
+      '/api/report/before-after/route': ['./node_modules/@sparticuz/chromium/**/*'],
+    },
   },
   images: {
     remotePatterns: [
