@@ -371,7 +371,7 @@ export function buildReportHtml(
 // isi cached copy ko reuse karti hain. Version yahan aur package.json mein SAME rakho.
 const CHROMIUM_PACK_URL =
   process.env.CHROMIUM_PACK_URL ||
-  'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
+  'https://github.com/Sparticuz/chromium/releases/download/v138.0.2/chromium-v138.0.2-pack.tar';
 
 // ---------- PDF banane wala ----------
 // Har step alag se try/catch + log karte hain taaki Vercel Function Logs mein
@@ -379,6 +379,9 @@ const CHROMIUM_PACK_URL =
 export async function generatePdfBuffer(html: string): Promise<Uint8Array> {
   let executablePath: string;
   try {
+    // PDF ke liye WebGL/graphics stack ki zaroorat nahi — isse off rakhne se
+    // launch zyada stable rehta hai serverless (AL2023) environment mein.
+    chromium.setGraphicsMode = false;
     executablePath = await chromium.executablePath(CHROMIUM_PACK_URL);
     console.log('[pdf] chromium executablePath:', executablePath);
   } catch (e) {
