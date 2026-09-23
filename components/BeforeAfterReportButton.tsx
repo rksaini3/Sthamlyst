@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { downloadPdfFromResponse, safeFileName } from '@/lib/downloadPdf';
+import { useLanguage } from '@/lib/LanguageProvider';
 
 interface Props {
   currentAuditId: string;
@@ -21,6 +22,7 @@ export default function BeforeAfterReportButton({ currentAuditId, brandName, cit
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const { lang } = useLanguage();
 
   async function handleDownload() {
     setLoading(true);
@@ -94,7 +96,7 @@ export default function BeforeAfterReportButton({ currentAuditId, brandName, cit
       const res = await fetch('/api/report/before-after', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ beforeAuditId: before.id, afterAuditId: afterId, agencyName }),
+        body: JSON.stringify({ beforeAuditId: before.id, afterAuditId: afterId, agencyName, lang }),
       });
 
       if (!res.ok) {
