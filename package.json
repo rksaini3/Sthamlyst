@@ -21,7 +21,7 @@
     "tus-js-client": "^4.1.0",
     "web-push": "^3.6.7",
     "puppeteer-core": "^23.0.0",
-    "@sparticuz/chromium": "^131.0.0"
+    "@sparticuz/chromium-min": "131.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
