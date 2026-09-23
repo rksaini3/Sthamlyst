@@ -181,9 +181,16 @@ function sourceLabel(source: string): string {
 }
 
 // NOTE: PDF mein emoji/special arrows nahi — serverless Chromium mein woh box (tofu) ban jaate hain
-const BASE_CSS = `
+// font-family ka Devanagari fallback sirf Hindi PDF ke liye jodte hain (buildCss mein) — isse
+// English PDF ka font-stack bilkul pehle jaisa (untouched) rehta hai.
+function buildCss(lang: Language): string {
+  const bodyFont =
+    lang === 'hi'
+      ? `'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif`
+      : `'Helvetica Neue', Arial, sans-serif`;
+  return `
   * { box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Arial, 'Noto Sans Devanagari', sans-serif; color: #14162E; margin: 0; padding: 40px 50px; font-size: 13px; }
+  body { font-family: ${bodyFont}; color: #14162E; margin: 0; padding: 40px 50px; font-size: 13px; }
   .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B85E3; padding-bottom: 16px; margin-bottom: 26px; }
   .header h1 { color: #E0A44B; margin: 0; font-size: 26px; }
   .header .tag { font-size: 12px; color: #666; }
@@ -219,6 +226,7 @@ const BASE_CSS = `
   ul { margin: 6px 0 0 18px; padding: 0; line-height: 1.6; }
   .footer { margin-top: 34px; padding-top: 12px; border-top: 1px solid #eee; font-size: 10px; color: #999; text-align: center; line-height: 1.5; }
 `;
+}
 
 // White-label logic: agencyName diya ho to PDF ka main brand wahi bane (Sthamly nahi dikhta).
 // agencyName khali ho to default apna "Sthamly" brand dikhta hai — jaisa pehle tha.
@@ -232,7 +240,7 @@ function pageShell(title: string, agencyName: string | undefined, body: string, 
 <head>
 <meta charset="UTF-8">
 <title>${esc(title)}</title>
-<style>${BASE_CSS}</style>
+<style>${buildCss(lang)}</style>
 </head>
 <body>
   <div class="header">
@@ -533,8 +541,10 @@ const CHROMIUM_PACK_URL =
 // Hindi (Devanagari) text render karne ke liye serverless Chromium mein by-default koi
 // Devanagari font nahi hota — usko load nahi kiya to PDF mein Hindi text khaali boxes
 // (tofu) ban jaata hai. Isliye Hindi report ke liye ek baar yeh font load karte hain.
+// (jsDelivr CDN Vercel ke serverless network se reliably reach nahi ho raha tha, isliye
+// GitHub ka apna raw file host (raw.githubusercontent.com) use kar rahe hain — zyada stable.)
 const DEVANAGARI_FONT_URL =
-  'https://cdn.jsdelivr.net/gh/notofonts/notofonts.github.io/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf';
+  'https://raw.githubusercontent.com/notofonts/notofonts.github.io/main/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf';
 
 let devanagariFontLoaded = false;
 
