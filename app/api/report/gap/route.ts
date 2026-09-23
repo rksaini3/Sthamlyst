@@ -20,7 +20,7 @@ function safeFileName(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { auditId, agencyName } = await req.json();
+    const { auditId, agencyName, lang } = await req.json();
 
     if (!auditId) {
       return NextResponse.json({ error: 'auditId chahiye' }, { status: 400 });
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
     }
 
     const agency = typeof agencyName === 'string' ? agencyName.trim().slice(0, 60) : undefined;
-    const html = buildGapReportHtml(snapshot, agency || undefined);
-    const pdf = await generatePdfBuffer(html);
+    const reportLang = lang === 'hi' ? 'hi' : 'en';
+    const html = buildGapReportHtml(snapshot, agency || undefined, reportLang);
+    const pdf = await generatePdfBuffer(html, reportLang);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
