@@ -1,4 +1,5 @@
 // Report ke liye shared data loading + gap analysis (Gap PDF aur Before/After PDF dono yahi use karte hain)
+import type { Language } from './i18n';
 
 export interface MentionSummary {
   source: string;
@@ -166,28 +167,40 @@ function stat(list: MentionSummary[]) {
 }
 
 // Sirf audit ke actual data se kamiyan nikalta hai — koi assumption ya guarantee nahi
-export function analyzeGaps(s: AuditSnapshot): Gap[] {
+// `lang` decide karta hai ki gap ka title/detail/action English mein aaye ya Hindi (Devanagari) mein.
+export function analyzeGaps(s: AuditSnapshot, lang: Language = 'en'): Gap[] {
   const gaps: Gap[] = [];
   const local = s.mentions.filter((m) => m.isLocal);
   const web = s.mentions.filter((m) => !m.isLocal);
   const ls = stat(local);
   const ws = stat(web);
+  const isHi = lang === 'hi';
 
   if (ls.usable > 0 && ls.yes === 0) {
     gaps.push({
       severity: 'high',
-      title: `${s.city} mein koi bhi AI model aapke business ko nahi pehchanta`,
-      detail: `Local check mein ${ls.no} me se ${ls.no} AI model ne bola ki unhe ${s.brandName} ke baare mein specific jaankari nahi hai.`,
-      action:
-        'Google Business Profile poora bharein (sahi category, description, services, photos). Business ka naam, address aur phone har jagah (JustDial, Facebook, Instagram, IndiaMART) same rakhein. Ache reviews badhayein.',
+      title: isHi
+        ? `${s.city} में कोई भी AI मॉडल आपके बिज़नेस को नहीं पहचानता`
+        : `No AI model recognizes your business in ${s.city}`,
+      detail: isHi
+        ? `लोकल चेक में ${ls.usable} में से ${ls.no} AI मॉडल ने कहा कि उनके पास ${s.brandName} के बारे में कोई खास जानकारी नहीं है।`
+        : `In the local check, ${ls.no} out of ${ls.usable} AI models said they don't have specific information about ${s.brandName}.`,
+      action: isHi
+        ? 'Google Business Profile पूरी तरह भरें (सही कैटेगरी, विवरण, सेवाएं, फ़ोटो)। बिज़नेस का नाम, पता और फ़ोन नंबर हर जगह (JustDial, Facebook, Instagram, IndiaMART) एक जैसा रखें। अच्छे रिव्यू बढ़ाएं।'
+        : 'Fully fill out your Google Business Profile (correct category, description, services, photos). Keep your business name, address, and phone number consistent everywhere (JustDial, Facebook, Instagram, IndiaMART). Build up genuine positive reviews.',
     });
   } else if (ls.usable > 0 && ls.no > 0) {
     gaps.push({
       severity: 'medium',
-      title: `${ls.no} AI model local search mein aapko nahi pehchante`,
-      detail: `${ls.usable} me se sirf ${ls.yes} model ne ${s.brandName} ko pehchana.`,
-      action:
-        'Google Business Profile aur online listings ko update rakhein aur local news/directories mein business ka zikr badhayein.',
+      title: isHi
+        ? `${ls.no} AI मॉडल लोकल सर्च में आपको नहीं पहचानते`
+        : `${ls.no} AI models don't recognize you in local search`,
+      detail: isHi
+        ? `${ls.usable} में से सिर्फ़ ${ls.yes} मॉडल ने ${s.brandName} को पहचाना।`
+        : `Only ${ls.yes} out of ${ls.usable} models recognized ${s.brandName}.`,
+      action: isHi
+        ? 'Google Business Profile और ऑनलाइन लिस्टिंग अपडेट रखें और लोकल न्यूज़/डायरेक्टरी में बिज़नेस का ज़िक्र बढ़ाएं।'
+        : 'Keep your Google Business Profile and online listings updated, and increase mentions of your business in local news/directories.',
     });
   }
 
@@ -195,17 +208,28 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
     if (ws.usable > 0 && ws.yes === 0) {
       gaps.push({
         severity: 'high',
-        title: 'AI models website/brand ko general search mein nahi pehchante',
-        detail: `${ws.no} AI model ne bola ki unke paas ${s.brandName} ki specific jaankari nahi hai.`,
-        action:
-          'Website par Organization schema, saaf About page aur FAQ page lagayein. Doosri trusted sites (news, directories, social profiles) par brand ka zikr badhayein.',
+        title: isHi
+          ? 'AI मॉडल सामान्य सर्च में आपकी वेबसाइट/ब्रांड को नहीं पहचानते'
+          : "AI models don't recognize your website/brand in general search",
+        detail: isHi
+          ? `${ws.no} AI मॉडल ने कहा कि उनके पास ${s.brandName} की कोई खास जानकारी नहीं है।`
+          : `${ws.no} AI models said they don't have specific information about ${s.brandName}.`,
+        action: isHi
+          ? 'वेबसाइट पर Organization schema, साफ़ About पेज और FAQ पेज लगाएं। भरोसेमंद अन्य साइटों (न्यूज़, डायरेक्टरी, सोशल प्रोफ़ाइल) पर ब्रांड का ज़िक्र बढ़ाएं।'
+          : 'Add Organization schema, a clear About page, and an FAQ page to your website. Increase mentions of your brand on other trusted sites (news, directories, social profiles).',
       });
     } else if (ws.usable > 0 && ws.no > 0) {
       gaps.push({
         severity: 'medium',
-        title: `${ws.no} AI model general search mein aapko nahi pehchante`,
-        detail: `${ws.usable} me se ${ws.yes} model ne ${s.brandName} ko pehchana.`,
-        action: 'Structured data (schema) aur FAQ content se brand ki pehchaan clear karein.',
+        title: isHi
+          ? `${ws.no} AI मॉडल सामान्य सर्च में आपको नहीं पहचानते`
+          : `${ws.no} AI models don't recognize you in general search`,
+        detail: isHi
+          ? `${ws.usable} में से ${ws.yes} मॉडल ने ${s.brandName} को पहचाना।`
+          : `${ws.yes} out of ${ws.usable} models recognized ${s.brandName}.`,
+        action: isHi
+          ? 'स्ट्रक्चर्ड डेटा (schema) और FAQ कंटेंट से ब्रांड की पहचान साफ़ करें।'
+          : 'Make your brand identity clear with structured data (schema) and FAQ content.',
       });
     }
 
@@ -213,9 +237,13 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
     if (mentionedNoCitation > 0) {
       gaps.push({
         severity: 'low',
-        title: 'AI models ne source link nahi diya',
-        detail: `${mentionedNoCitation} model ne brand ko pehchana par koi specific source URL nahi bataya.`,
-        action: 'Website ke About/FAQ pages ko clear aur crawlable rakhein taaki AI unhe source ke roop mein use kar sake.',
+        title: isHi ? 'AI मॉडल ने सोर्स लिंक नहीं दिया' : "AI models didn't provide a source link",
+        detail: isHi
+          ? `${mentionedNoCitation} मॉडल ने ब्रांड को पहचाना पर कोई खास सोर्स URL नहीं बताया।`
+          : `${mentionedNoCitation} models recognized the brand but didn't mention a specific source URL.`,
+        action: isHi
+          ? 'वेबसाइट के About/FAQ पेज साफ़ और crawlable रखें ताकि AI उन्हें सोर्स के तौर पर इस्तेमाल कर सके।'
+          : "Keep your website's About/FAQ pages clear and crawlable so AI can use them as a source.",
       });
     }
 
@@ -223,35 +251,57 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
       if (!s.google.appearsInOverview) {
         gaps.push({
           severity: 'medium',
-          title: 'Google Knowledge Panel / Answer Box mein brand nahi dikhta',
-          detail: `"${s.brandName}" search karne par Google ke answer box ya knowledge panel mein aapka brand nahi aaya.`,
-          action: 'Google Business Profile claim/verify karein aur website par Organization schema lagayein.',
+          title: isHi
+            ? 'Google Knowledge Panel / Answer Box में ब्रांड नहीं दिखता'
+            : "Brand doesn't appear in Google's Knowledge Panel / Answer Box",
+          detail: isHi
+            ? `"${s.brandName}" सर्च करने पर Google के answer box या knowledge panel में आपका ब्रांड नहीं आया।`
+            : `Searching for "${s.brandName}" doesn't show your brand in Google's answer box or knowledge panel.`,
+          action: isHi
+            ? 'Google Business Profile claim/verify करें और वेबसाइट पर Organization schema लगाएं।'
+            : 'Claim/verify your Google Business Profile and add Organization schema to your website.',
         });
       }
       if (s.google.rankedPosition === null) {
         gaps.push({
           severity: 'high',
-          title: 'Brand naam search karne par website top results mein nahi',
-          detail: `"${s.brandName}" search karne par aapki website pehle 10 organic results mein nahi mili.`,
-          action:
-            'Home page ke title/heading mein brand naam rakhein, Google Search Console mein site verify karke sitemap submit karein, aur social profiles se website link karein.',
+          title: isHi
+            ? 'ब्रांड नाम सर्च करने पर वेबसाइट टॉप रिज़ल्ट्स में नहीं है'
+            : "Website doesn't appear in top results when searching your brand name",
+          detail: isHi
+            ? `"${s.brandName}" सर्च करने पर आपकी वेबसाइट पहले 10 ऑर्गेनिक रिज़ल्ट्स में नहीं मिली।`
+            : `Searching for "${s.brandName}" doesn't show your website in the first 10 organic results.`,
+          action: isHi
+            ? 'होम पेज के title/heading में ब्रांड नाम रखें, Google Search Console में साइट वेरिफ़ाई करके sitemap सबमिट करें, और सोशल प्रोफ़ाइल से वेबसाइट लिंक करें।'
+            : 'Include your brand name in the home page title/heading, verify your site in Google Search Console and submit a sitemap, and link to your website from your social profiles.',
         });
       } else if (s.google.rankedPosition > 3) {
         gaps.push({
           severity: 'low',
-          title: `Brand search mein website ${s.google.rankedPosition} number par hai`,
-          detail: 'Brand naam search par website top 3 mein nahi hai.',
-          action: 'Website ke title/meta description aur backlinks sudharein.',
+          title: isHi
+            ? `ब्रांड सर्च में वेबसाइट नंबर ${s.google.rankedPosition} पर है`
+            : `Website ranks #${s.google.rankedPosition} for a brand-name search`,
+          detail: isHi
+            ? 'ब्रांड नाम सर्च करने पर वेबसाइट टॉप 3 में नहीं है।'
+            : "Your website isn't in the top 3 when searching your brand name.",
+          action: isHi
+            ? 'वेबसाइट के title/meta description और बैकलिंक्स सुधारें।'
+            : "Improve your website's title/meta description and backlinks.",
         });
       }
     }
   } else {
     gaps.push({
       severity: 'medium',
-      title: 'Website nahi hai — AI ko cite karne ke liye koi source nahi',
-      detail: 'Bina website ke AI assistants ke paas aapke business ka koi official source nahi hota.',
-      action:
-        'Ek simple website banayein (naam, services, address, phone, FAQ) aur usme schema markup lagayein.',
+      title: isHi
+        ? 'वेबसाइट नहीं है — AI के लिए कोई सोर्स नहीं'
+        : 'No website — nothing for AI to cite as a source',
+      detail: isHi
+        ? 'बिना वेबसाइट के AI असिस्टेंट्स के पास आपके बिज़नेस का कोई ऑफ़िशियल सोर्स नहीं होता।'
+        : 'Without a website, AI assistants have no official source for your business.',
+      action: isHi
+        ? 'एक आसान वेबसाइट बनाएं (नाम, सेवाएं, पता, फ़ोन, FAQ) और उसमें schema markup लगाएं।'
+        : 'Build a simple website (name, services, address, phone, FAQ) and add schema markup to it.',
     });
   }
 
@@ -259,9 +309,13 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
   if (negative > 0) {
     gaps.push({
       severity: 'high',
-      title: 'Kuch AI models ka sentiment negative hai',
-      detail: `${negative} model ne brand ko negative tone mein bataya.`,
-      action: 'Negative reviews ka polite jawab dein aur naye positive reviews/case studies publish karein.',
+      title: isHi ? 'कुछ AI मॉडल का सेंटिमेंट नेगेटिव है' : 'Some AI models have a negative sentiment',
+      detail: isHi
+        ? `${negative} मॉडल ने ब्रांड को नेगेटिव टोन में बताया।`
+        : `${negative} models described the brand in a negative tone.`,
+      action: isHi
+        ? 'नेगेटिव रिव्यू का विनम्रता से जवाब दें और नए पॉज़िटिव रिव्यू/केस स्टडी पब्लिश करें।'
+        : 'Respond politely to negative reviews and publish new positive reviews/case studies.',
     });
   }
 
@@ -269,9 +323,11 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
   if (unclear > 0) {
     gaps.push({
       severity: 'low',
-      title: `${unclear} check ka jawab nahi mil paya`,
-      detail: 'Kuch AI models us waqt jawab nahi de paye, isliye woh check score mein shamil nahi hue.',
-      action: 'Kuch der baad dobara audit chalayein.',
+      title: isHi ? `${unclear} चेक का जवाब नहीं मिल पाया` : `${unclear} checks didn't get an answer`,
+      detail: isHi
+        ? 'कुछ AI मॉडल उस समय जवाब नहीं दे पाए, इसलिए वो चेक स्कोर में शामिल नहीं हुए।'
+        : "Some AI models didn't respond at that time, so those checks weren't included in the score.",
+      action: isHi ? 'कुछ देर बाद दोबारा ऑडिट चलाएं।' : 'Run the audit again after a while.',
     });
   }
 
@@ -280,7 +336,13 @@ export function analyzeGaps(s: AuditSnapshot): Gap[] {
   return gaps;
 }
 
-export function scoreBand(score: number | null): string {
+export function scoreBand(score: number | null, lang: Language = 'en'): string {
+  if (lang === 'hi') {
+    if (score === null) return 'उपलब्ध नहीं';
+    if (score >= 70) return 'मज़बूत';
+    if (score >= 40) return 'औसत';
+    return 'कमज़ोर';
+  }
   if (score === null) return 'N/A';
   if (score >= 70) return 'Strong';
   if (score >= 40) return 'Average';
