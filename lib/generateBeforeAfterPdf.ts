@@ -1,4 +1,4 @@
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 import {
   analyzeGaps,
@@ -365,13 +365,39 @@ export function buildReportHtml(
   return pageShell('AI Visibility Before/After Report', agencyName, body);
 }
 
+// @sparticuz/chromium-min khud Chromium binary include nahi karta (isiliye chhota hai
+// aur Vercel ke function-size limit mein aasani se fit hota hai). Pehli call par ye
+// URL se pack.tar download karke /tmp mein extract karta hai; baad ki (warm) calls
+// isi cached copy ko reuse karti hain. Version yahan aur package.json mein SAME rakho.
+const CHROMIUM_PACK_URL =
+  process.env.CHROMIUM_PACK_URL ||
+  'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
+
 // ---------- PDF banane wala ----------
+// Har step alag se try/catch + log karte hain taaki Vercel Function Logs mein
+// saaf pata chale ki crash kahan hua (chromium path, launch, ya PDF render).
 export async function generatePdfBuffer(html: string): Promise<Uint8Array> {
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: true,
-  });
+  let executablePath: string;
+  try {
+    executablePath = await chromium.executablePath(CHROMIUM_PACK_URL);
+    console.log('[pdf] chromium executablePath:', executablePath);
+  } catch (e) {
+    console.error('[pdf] chromium.executablePath() failed:', e);
+    throw new Error('Chromium binary nahi mil payi (executablePath failed)');
+  }
+
+  let browser: any;
+  try {
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath,
+      headless: true,
+    });
+    console.log('[pdf] browser launched');
+  } catch (e) {
+    console.error('[pdf] puppeteer.launch() failed:', e);
+    throw new Error(`Chromium launch nahi ho paya: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   try {
     const page = await browser.newPage();
@@ -383,8 +409,16 @@ export async function generatePdfBuffer(html: string): Promise<Uint8Array> {
       printBackground: true,
       margin: { top: '20px', bottom: '20px', left: '20px', right: '20px' },
     });
+    console.log('[pdf] pdf rendered, bytes:', pdf.length);
     return new Uint8Array(pdf);
+  } catch (e) {
+    console.error('[pdf] page render/pdf failed:', e);
+    throw new Error(`PDF render nahi ho paya: ${e instanceof Error ? e.message : String(e)}`);
   } finally {
-    await browser.close();
+    try {
+      await browser.close();
+    } catch {
+      /* ignore close errors */
+    }
   }
 }
