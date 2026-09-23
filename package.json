@@ -20,8 +20,8 @@
     "react-dom": "^18",
     "tus-js-client": "^4.1.0",
     "web-push": "^3.6.7",
-    "puppeteer-core": "^23.0.0",
-    "@sparticuz/chromium-min": "131.0.1"
+    "puppeteer-core": "^23.11.1",
+    "@sparticuz/chromium-min": "138.0.2"
   },
   "devDependencies": {
     "@types/node": "^20",
