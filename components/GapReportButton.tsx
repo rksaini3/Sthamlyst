@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { downloadPdfFromResponse, safeFileName } from '@/lib/downloadPdf';
+import { useLanguage } from '@/lib/LanguageProvider';
 
 interface Props {
   auditId: string;
@@ -14,6 +15,7 @@ interface Props {
 export default function GapReportButton({ auditId, brandName, isFirstAudit, agencyName }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { lang } = useLanguage();
 
   async function handleDownload() {
     setLoading(true);
@@ -22,7 +24,7 @@ export default function GapReportButton({ auditId, brandName, isFirstAudit, agen
       const res = await fetch('/api/report/gap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auditId, agencyName }),
+        body: JSON.stringify({ auditId, agencyName, lang }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
