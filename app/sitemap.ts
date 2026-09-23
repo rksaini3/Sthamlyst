@@ -13,28 +13,28 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/login`,
+      url: `${BASE_URL}/ai-faq`,
       lastModified,
       changeFrequency: 'monthly',
-      priority: 0.5,
+      priority: 0.9,
     },
     {
-      url: `${BASE_URL}/dashboard`,
+      url: `${BASE_URL}/privacy`,
       lastModified,
-      changeFrequency: 'daily',
-      priority: 0.8,
+      changeFrequency: 'yearly',
+      priority: 0.3,
     },
     {
-      url: `${BASE_URL}/optimizer`,
+      url: `${BASE_URL}/terms`,
       lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/profile`,
-      lastModified,
-      changeFrequency: 'monthly',
+      changeFrequency: 'yearly',
       priority: 0.3,
     },
   ]
 }
+
+// Note: /login, /dashboard, /optimizer, /profile jaan-boojh kar hataye gaye hain.
+// Ye sab auth-gated app pages hain (login ya query params ke bina khaali/redirect
+// dete hain) — public sitemap mein inka hona Google ko "Page with redirect" aur
+// "Not found (404)" errors deta hai. In pages ko /app/robots.ts mein bhi disallow
+// kar diya gaya hai taaki Google inhe crawl hi na kare.
