@@ -50,13 +50,15 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     // PDF report (Puppeteer + serverless Chromium) ko webpack bundle nahi karna — warna runtime pe binary nahi milti
-    serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+    serverComponentsExternalPackages: ['@sparticuz/chromium-min', 'puppeteer-core'],
     // Next.js ka file-tracing khud-ba-khud chromium ki binary files ko Vercel deployment
     // mein include nahi karta — iske bina function runtime par "Chromium not found" ho
     // kar crash ho jaata hai (jo PDF download ko "fail" bana deta hai).
+    // @sparticuz/chromium-min khud chromium binary bundle nahi karta (isiliye size limit
+    // mein fit hota hai) — bas ye chhoti si package trace ho jaani chahiye.
     outputFileTracingIncludes: {
-      '/api/report/gap/route': ['./node_modules/@sparticuz/chromium/**/*'],
-      '/api/report/before-after/route': ['./node_modules/@sparticuz/chromium/**/*'],
+      '/api/report/gap/route': ['./node_modules/@sparticuz/chromium-min/**/*'],
+      '/api/report/before-after/route': ['./node_modules/@sparticuz/chromium-min/**/*'],
     },
   },
   images: {
@@ -71,6 +73,16 @@ const nextConfig = {
         pathname: '/storage/v1/object/public/**',
       },
     ],
+  },
+  // Extra safety net: webpack ko bhi saaf bata do ki ye native-binary packages
+  // bundle na kare, warna cold-start par hi crash ho jaata hai (jo route ke
+  // apne try/catch tak pahunchta hi nahi — isliye frontend par sirf generic
+  // "download nahi ho payi" dikhta hai, koi specific error nahi).
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [...(config.externals || []), '@sparticuz/chromium-min', 'puppeteer-core'];
+    }
+    return config;
   },
 }
 
