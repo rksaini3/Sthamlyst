@@ -20,7 +20,7 @@ function safeFileName(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { beforeAuditId, afterAuditId, agencyName } = await req.json();
+    const { beforeAuditId, afterAuditId, agencyName, lang } = await req.json();
 
     if (!beforeAuditId || !afterAuditId) {
       return NextResponse.json({ error: 'beforeAuditId aur afterAuditId dono chahiye' }, { status: 400 });
@@ -39,8 +39,9 @@ export async function POST(req: NextRequest) {
 
     const fixes = await loadFixesSince(supabase, before);
     const agency = typeof agencyName === 'string' ? agencyName.trim().slice(0, 60) : undefined;
-    const html = buildReportHtml(before, after, agency || undefined, fixes);
-    const pdf = await generatePdfBuffer(html);
+    const reportLang = lang === 'hi' ? 'hi' : 'en';
+    const html = buildReportHtml(before, after, agency || undefined, fixes, reportLang);
+    const pdf = await generatePdfBuffer(html, reportLang);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
