@@ -3,7 +3,6 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import ConnectGBPButton from '@/components/ConnectGBPButton';
 import ConnectShopifyButton from '@/components/ConnectShopifyButton';
 import type { WordpressConnection, ShopifyConnection, Optimization, Audit } from '@/types';
 
@@ -26,7 +25,6 @@ export default function OptimizerPage() {
   const [shopifyConnections, setShopifyConnections] = useState<ShopifyConnection[]>([]);
   const [optimizations, setOptimizations] = useState<OptimizationWithAudit[]>([]);
   const [siteScores, setSiteScores] = useState<Record<string, { brand: string; score: number | null }>>({});
-  const [gbpConnected, setGbpConnected] = useState(false);
   const [siteUrl, setSiteUrl] = useState('');
   const [wpUsername, setWpUsername] = useState('');
   const [wpAppPassword, setWpAppPassword] = useState('');
@@ -53,13 +51,6 @@ export default function OptimizerPage() {
       .select('*')
       .eq('user_id', userId);
     setShopifyConnections(shopifyConns ?? []);
-
-    const { data: gbp } = await supabase
-      .from('gbp_connections')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    setGbpConnected(!!gbp);
 
     const { data: opts } = await supabase
       .from('optimizations')
@@ -123,17 +114,6 @@ export default function OptimizerPage() {
   return (
     <main className="px-6 py-10 max-w-2xl mx-auto pb-24 bg-white dark:bg-[#0B0C1A] text-stone-900 dark:text-stone-100 min-h-screen">
       <h1 className="text-2xl font-bold mb-6">Optimizer</h1>
-
-      <section className="mb-8">
-        <h2 className="font-semibold mb-2">Google Business Profile</h2>
-        {gbpConnected ? (
-          <div className="border border-green-200 dark:border-green-900 rounded-xl p-4 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20">
-            ✅ Google Business Profile connected
-          </div>
-        ) : (
-          <ConnectGBPButton />
-        )}
-      </section>
 
       <section className="mb-8">
         <h2 className="font-semibold mb-2">Shopify Store</h2>
