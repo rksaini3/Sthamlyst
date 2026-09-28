@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { getSupabaseAdmin, requireUser } from '@/lib/requireUser';
 
 function getRazorpay() {
   return new Razorpay({
@@ -17,16 +10,25 @@ function getRazorpay() {
   });
 }
 
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const {
-      userId,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = await req.json();
+    const supabaseAdmin = getSupabaseAdmin();
 
-    if (!userId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    // FIX: userId ab sirf login-token se aata hai, body se nahi
+    const auth = await requireUser(req, supabaseAdmin);
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: 'Missing payment details' }, { status: 400 });
     }
 
@@ -36,29 +38,58 @@ export async function POST(req: NextRequest) {
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    if (expectedSignature !== razorpay_signature) {
+    if (!safeEqual(expectedSignature, String(razorpay_signature))) {
       return NextResponse.json({ error: 'Signature mismatch' }, { status: 400 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const razorpay = getRazorpay();
+    // FIX (replay bug): sirf signature match hona kaafi nahi tha — ek hi valid
+    // order_id/payment_id/signature triple baar-baar bhejkar pehle anlimited
+    // free-month subscriptions ban sakti thi. Ab Razorpay se order khud fetch
+    // karke verify karte hain ki yeh WAHI ₹1 intro order tha, ISI user ka tha,
+    // aur genuinely "paid" hai.
+    const razorpayOrder = await getRazorpay().orders.fetch(razorpay_order_id);
+
+    if (razorpayOrder.receipt !== `intro_sub_${userId}`) {
+      return NextResponse.json({ error: 'Payment is is account se match nahi karta' }, { status: 400 });
+    }
+    if (razorpayOrder.notes?.priceType !== 'intro_subscription') {
+      return NextResponse.json({ error: 'Invalid order type' }, { status: 400 });
+    }
+    if (razorpayOrder.status !== 'paid') {
+      return NextResponse.json({ error: 'Payment abhi confirm nahi hua' }, { status: 400 });
+    }
+
+    // FIX (replay bug): agar intro pehle hi use ho chuka hai (aur subscription
+    // already ban chuki hai), to dobara free-month subscription mat banao —
+    // yehi asli replay-protection hai.
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('intro_price_used, razorpay_subscription_id')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.intro_price_used && profile?.razorpay_subscription_id) {
+      return NextResponse.json({ error: 'Intro offer already used on this account' }, { status: 409 });
+    }
 
     // ₹1 payment confirm — ab is account ka intro price hamesha ke liye use ho gaya
-    await supabaseAdmin
-      .from('profiles')
-      .update({ intro_price_used: true })
-      .eq('id', userId);
+    await supabaseAdmin.from('profiles').update({ intro_price_used: true }).eq('id', userId);
 
     // Subscription banao, lekin billing 30 din baad shuru ho (1 month free)
     const startAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
-    const subscription = await razorpay.subscriptions.create({
-      plan_id: process.env.RAZORPAY_MONTHLY_PLAN_ID!,
+    const subscription = await getRazorpay().subscriptions.create({
+      plan_id: process.env.RAZORPAY_AGENCY_PLAN_ID!,
       customer_notify: 1,
       total_count: 120,
       start_at: startAt,
       notes: { userId, freeMonthUntil: String(startAt) },
     });
+
+    await supabaseAdmin
+      .from('profiles')
+      .update({ razorpay_subscription_id: subscription.id })
+      .eq('id', userId);
 
     return NextResponse.json({
       subscriptionId: subscription.id,
