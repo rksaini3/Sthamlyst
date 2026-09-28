@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { getSupabaseAdmin, requireUser } from '@/lib/requireUser';
 
 function getRazorpay() {
   return new Razorpay({
@@ -17,12 +10,13 @@ function getRazorpay() {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await req.json();
-  if (!userId) {
-    return NextResponse.json({ error: 'userId required' }, { status: 400 });
-  }
-
   const supabaseAdmin = getSupabaseAdmin();
+
+  // FIX: userId ab sirf login-token se aata hai, body se nahi
+  const auth = await requireUser(req, supabaseAdmin);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
+
   const razorpay = getRazorpay();
 
   const { data: profile } = await supabaseAdmin
@@ -32,14 +26,19 @@ export async function POST(req: NextRequest) {
     .single();
 
   // Case A: Intro ₹1 pehle hi use ho chuka — seedha normal subscription
-  // shuru karo, koi free month nahi, turant ₹999/month billing start
+  // shuru karo, koi free month nahi, turant ₹2999/month billing start
   if (profile?.intro_price_used) {
     const subscription = await razorpay.subscriptions.create({
-      plan_id: process.env.RAZORPAY_MONTHLY_PLAN_ID!,
+      plan_id: process.env.RAZORPAY_AGENCY_PLAN_ID!,
       customer_notify: 1,
       total_count: 120,
       notes: { userId },
     });
+
+    await supabaseAdmin
+      .from('profiles')
+      .update({ razorpay_subscription_id: subscription.id })
+      .eq('id', userId);
 
     return NextResponse.json({
       requiresIntroPayment: false,
