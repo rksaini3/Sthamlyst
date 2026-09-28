@@ -1,28 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { encrypt } from '@/lib/crypto';
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Supabase env vars missing');
-  return createClient(url, key);
-}
+import { getSupabaseAdmin, requireUser } from '@/lib/requireUser';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, siteUrl, wpUsername, wpAppPassword } = await req.json();
+    const supabase = getSupabaseAdmin();
 
-    if (!userId || !siteUrl || !wpUsername || !wpAppPassword) {
+    // FIX: userId ab sirf login-token se aata hai, body se nahi
+    const auth = await requireUser(req, supabase);
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
+
+    const { siteUrl, wpUsername, wpAppPassword } = await req.json();
+
+    if (!siteUrl || !wpUsername || !wpAppPassword) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    // Basic validation — sirf http(s) URLs allow, warna aage server-side fetch
+    // (fix push karte waqt) kisi internal/malicious address ko hit kar sakta hai
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(siteUrl);
+    } catch {
+      return NextResponse.json({ error: 'Website URL sahi format mein nahi hai' }, { status: 400 });
+    }
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return NextResponse.json({ error: 'Sirf http:// ya https:// URLs allowed hain' }, { status: 400 });
+    }
+
     const encryptedPassword = encrypt(wpAppPassword);
 
     const { error } = await supabase.from('wordpress_connections').insert({
       user_id: userId,
-      site_url: siteUrl,
+      site_url: parsedUrl.toString(),
       wp_username: wpUsername,
       wp_app_password: encryptedPassword,
     });
