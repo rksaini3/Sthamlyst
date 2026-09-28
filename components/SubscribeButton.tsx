@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { loadRazorpayScript } from '@/lib/razorpay-client';
 import { supabase } from '@/lib/supabaseClient';
+import { authHeaders } from '@/lib/authHeaders';
 
 export default function SubscribeButton() {
   const [loading, setLoading] = useState(false);
@@ -11,8 +12,8 @@ export default function SubscribeButton() {
     const options = {
       key: keyId,
       subscription_id: subscriptionId,
-      name: 'Sthamly Pro',
-      description: '₹999/month — Auto AI Visibility Fixes',
+      name: 'Sthamly Agency',
+      description: '₹2,999/month — Manage up to 10 brands, auto AI-visibility fixes',
       handler: function () {
         window.location.href = '/profile?subscribed=1';
       },
@@ -26,18 +27,17 @@ export default function SubscribeButton() {
     setLoading(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) {
+      if (!userData.user) {
         window.location.href = '/login';
         return;
       }
 
       await loadRazorpayScript();
+      const authH = await authHeaders();
 
       const res = await fetch('/api/checkout/create-subscription', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        headers: { 'Content-Type': 'application/json', ...authH },
       });
       const data = await res.json();
 
@@ -53,15 +53,15 @@ export default function SubscribeButton() {
         order_id: data.razorpayOrderId,
         amount: data.amount,
         currency: 'INR',
-        name: 'Sthamly Pro — Intro Offer',
-        description: '₹1 aaj, phir 1 mahina free, uske baad ₹999/month',
+        name: 'Sthamly Agency — Intro Offer',
+        description: '₹1 aaj, phir 1 mahina free, uske baad ₹2,999/month',
         handler: async function (introResponse: any) {
           // ₹1 confirm hone ke baad, subscription activate karo (1 month free ke saath)
+          const activateAuthH = await authHeaders();
           const activateRes = await fetch('/api/checkout/activate-subscription', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...activateAuthH },
             body: JSON.stringify({
-              userId,
               razorpay_order_id: introResponse.razorpay_order_id,
               razorpay_payment_id: introResponse.razorpay_payment_id,
               razorpay_signature: introResponse.razorpay_signature,
@@ -90,7 +90,7 @@ export default function SubscribeButton() {
       disabled={loading}
       className="mt-2 bg-orange-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
     >
-      {loading ? 'Please wait…' : 'Upgrade to Pro — ₹1 aaj, phir ₹999/month'}
+      {loading ? 'Please wait…' : 'Upgrade to Agency — ₹1 aaj, phir ₹2,999/month'}
     </button>
   );
 }
