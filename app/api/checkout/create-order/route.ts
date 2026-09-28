@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
-  }
-  return createClient(url, key);
-}
+import { getSupabaseAdmin, requireUser } from '@/lib/requireUser';
 
 function getRazorpay() {
   const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
@@ -21,12 +12,16 @@ function getRazorpay() {
 }
 
 const INTRO_AMOUNT = 100; // ₹1 in paise — sirf pehli baar milta hai (account ki poori life mein ek baar)
-const REGULAR_FIX_AMOUNT = 9900; // ₹99 in paise — dusri baar se one-time fix ka normal price
+const REGULAR_FIX_AMOUNT = 49900; // ₹499 in paise — dusri baar se one-time fix ka normal price
 
 export async function POST(req: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const razorpay = getRazorpay();
+
+    // FIX: userId ab sirf login-token se aata hai, body se nahi
+    const auth = await requireUser(req, supabaseAdmin);
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
 
     const { sthamlyOrderIds } = await req.json();
     const optimizationId = sthamlyOrderIds?.[0];
@@ -45,10 +40,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Optimization not found' }, { status: 404 });
     }
 
-    const userId = (optimization as any).audits?.user_id;
-    if (!userId) {
+    const ownerId = (optimization as any).audits?.user_id;
+    if (!ownerId) {
       return NextResponse.json({ error: 'User not linked to this optimization' }, { status: 400 });
     }
+
+    // FIX: sirf isi optimization ka asli malik hi iske liye payment order bana sake
+    if (ownerId !== userId) {
+      return NextResponse.json({ error: 'Yeh fix aapke account ka nahi hai' }, { status: 403 });
+    }
+
+    const razorpay = getRazorpay();
 
     // Paisa lene se PEHLE check: site connected hai? (warna customer pay karke bhi fix nahi paata)
     if (!optimization.wordpress_connection_id) {
