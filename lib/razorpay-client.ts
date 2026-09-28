@@ -4,6 +4,8 @@ declare global {
   }
 }
 
+import { authHeaders } from './authHeaders'
+
 export function loadRazorpayScript(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') return resolve(false)
@@ -35,9 +37,10 @@ export async function startCheckout({
     return
   }
 
+  const authH = await authHeaders()
   const createRes = await fetch('/api/checkout/create-order', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authH },
     body: JSON.stringify({ sthamlyOrderIds }),
   })
   const createData = await createRes.json()
@@ -52,14 +55,15 @@ export async function startCheckout({
     amount: createData.amount,
     currency: createData.currency,
     name: 'Sthamly',
-    description: 'Local Bazaar Order',
+    description: 'AI Visibility Fix — Fix Now',
     order_id: createData.razorpayOrderId,
     prefill: { name: buyerName, email: buyerEmail },
     theme: { color: '#B5451B' },
     handler: async (response: any) => {
+      const verifyAuthH = await authHeaders()
       const verifyRes = await fetch('/api/checkout/verify-payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...verifyAuthH },
         body: JSON.stringify({
           sthamlyOrderIds,
           razorpay_order_id: response.razorpay_order_id,
