@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { decrypt } from '@/lib/crypto';
 import { applyWordPressFixes, type FixResult } from '@/lib/siteFixes';
 import type { BrandInfo } from '@/lib/fixContent';
+import { getSupabaseAdmin, requireUser } from '@/lib/requireUser';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // FAQ generation + site API calls mein thoda time lag sakta hai
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase server env vars missing (check Vercel Environment Variables)');
-  }
-  return createClient(url, key);
-}
 
 function getRazorpay() {
   return new Razorpay({
@@ -35,6 +26,11 @@ function safeEqual(a: string, b: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
+
+    // FIX: userId ab sirf login-token se aata hai, body se nahi
+    const auth = await requireUser(req, supabaseAdmin);
+    if (auth instanceof NextResponse) return auth;
+    const { userId: callerId } = auth;
 
     const {
       sthamlyOrderIds,
@@ -95,6 +91,12 @@ export async function POST(req: NextRequest) {
 
     const audit = (optimization as any).audits;
     const userId = audit?.user_id;
+
+    // FIX: sirf isi optimization ka asli malik hi payment verify/apply kara sake
+    if (userId && userId !== callerId) {
+      return NextResponse.json({ error: 'Yeh fix aapke account ka nahi hai' }, { status: 403 });
+    }
+
     const priceType = razorpayOrder.notes?.priceType;
 
     if (priceType === 'intro' && userId) {
