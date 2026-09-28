@@ -51,6 +51,17 @@ function getDomain(url: string | null | undefined): string | null {
   }
 }
 
+// FIX: LLM se aaya citation_url kabhi bhi "javascript:..." jaisa ho sakta hai
+// (prompt injection se) — sirf http/https links ko hi clickable banate hain
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => '\\' + c);
 }
@@ -102,11 +113,15 @@ function DashboardContent() {
 
   async function loadReport(id: string) {
     setLoading(true);
-    const { data: audit, error: auditErr } = await supabase
-      .from('audits')
-      .select('*')
-      .eq('id', id)
-      .single();
+
+    // --- ROUND 1: yeh 4 queries ek-dusre par depend nahi karti, saath chalao ---
+    const [{ data: audit, error: auditErr }, { data: mentions }, { data: googleResults }, { data: userData }] =
+      await Promise.all([
+        supabase.from('audits').select('*').eq('id', id).single(),
+        supabase.from('ai_mentions').select('*').eq('audit_id', id),
+        supabase.from('google_ai_overview_results').select('*').eq('audit_id', id),
+        supabase.auth.getUser(),
+      ]);
 
     if (auditErr || !audit) {
       setError('Audit not found');
@@ -114,17 +129,10 @@ function DashboardContent() {
       return;
     }
 
-    const { data: mentions } = await supabase
-      .from('ai_mentions')
-      .select('*')
-      .eq('audit_id', id);
+    const uid = userData.user?.id ?? null;
+    setLoggedIn(!!uid);
 
-    const { data: googleResults } = await supabase
-      .from('google_ai_overview_results')
-      .select('*')
-      .eq('audit_id', id);
-
-    // Isi brand+city+website ke saare audits (pehla audit pehchanne aur purana fix dhoondhne ke liye)
+    // --- ROUND 2: sameBrand list — audit ka data chahiye, isliye Round 1 ke baad ---
     let sameBrandQ = supabase
       .from('audits')
       .select('id, created_at')
@@ -134,13 +142,23 @@ function DashboardContent() {
     sameBrandQ = audit.website_url
       ? sameBrandQ.eq('website_url', audit.website_url)
       : sameBrandQ.is('website_url', null);
-    const { data: sameBrand } = await sameBrandQ;
+
+    // wpConns ko bhi isi round mein chala dete hain — yeh sirf `uid` par depend karta hai,
+    // sameBrand ke result ka wait karne ki zaroorat nahi
+    const [{ data: sameBrand }, wpConnsResult] = await Promise.all([
+      sameBrandQ,
+      uid && audit.has_website
+        ? supabase.from('wordpress_connections').select('id, site_url').eq('user_id', uid)
+        : Promise.resolve({ data: null }),
+    ]);
+
     const sameBrandList = sameBrand ?? [];
     const earlier = sameBrandList.filter(
       (a) => new Date(a.created_at).getTime() < new Date(audit.created_at).getTime()
     );
     setIsFirstAudit(earlier.length === 0);
 
+    // --- ROUND 3: appliedRows sameBrandList ke ids par depend karta hai ---
     let brandFixed = false;
     if (sameBrandList.length > 0) {
       const { data: appliedRows } = await supabase
@@ -154,56 +172,46 @@ function DashboardContent() {
     }
     setFixApplied(brandFixed);
 
-    if (audit.has_website && !brandFixed) {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id ?? null;
-      setLoggedIn(!!uid);
+    if (audit.has_website && !brandFixed && uid) {
+      const wpConns = wpConnsResult.data;
+      const auditDomain = getDomain(audit.website_url);
+      const chosenWp =
+        (wpConns ?? []).find((c) => getDomain(c.site_url) === auditDomain) ?? (wpConns ?? [])[0] ?? null;
 
-      if (uid) {
-        const { data: wpConns } = await supabase
-          .from('wordpress_connections')
-          .select('id, site_url')
-          .eq('user_id', uid);
+      const wpId: string | null = chosenWp?.id ?? null;
+      setHasSite(!!wpId);
+      setMatchedSite(chosenWp?.site_url ?? null);
 
-        const auditDomain = getDomain(audit.website_url);
-        const chosenWp =
-          (wpConns ?? []).find((c) => getDomain(c.site_url) === auditDomain) ?? (wpConns ?? [])[0] ?? null;
+      // Har page-load par naya optimization row nahi banate — pehle wala reuse karte hain
+      const { data: existingOpt } = await supabase
+        .from('optimizations')
+        .select('id, payment_status, wordpress_connection_id')
+        .eq('audit_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-        const wpId: string | null = chosenWp?.id ?? null;
-        setHasSite(!!wpId);
-        setMatchedSite(chosenWp?.site_url ?? null);
+      let optId: string | null = existingOpt?.id ?? null;
 
-        // Har page-load par naya optimization row nahi banate — pehle wala reuse karte hain
-        const { data: existingOpt } = await supabase
+      if (!existingOpt) {
+        const { data: created } = await supabase
           .from('optimizations')
-          .select('id, payment_status, wordpress_connection_id')
-          .eq('audit_id', id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        let optId: string | null = existingOpt?.id ?? null;
-
-        if (!existingOpt) {
-          const { data: created } = await supabase
-            .from('optimizations')
-            .insert({
-              audit_id: id,
-              wordpress_connection_id: wpId,
-              fix_type: 'schema_markup',
-              status: 'pending',
-              payment_status: 'unpaid',
-            })
-            .select()
-            .single();
-          optId = created?.id ?? null;
-        } else if (existingOpt.payment_status !== 'paid' && existingOpt.wordpress_connection_id !== wpId) {
-          // Ho sakta hai user ne baad mein site connect ki ho — pending optimization ko update karo
-          await supabase.from('optimizations').update({ wordpress_connection_id: wpId }).eq('id', existingOpt.id);
-        }
-
-        setOptimizationId(optId);
+          .insert({
+            audit_id: id,
+            wordpress_connection_id: wpId,
+            fix_type: 'schema_markup',
+            status: 'pending',
+            payment_status: 'unpaid',
+          })
+          .select()
+          .single();
+        optId = created?.id ?? null;
+      } else if (existingOpt.payment_status !== 'paid' && existingOpt.wordpress_connection_id !== wpId) {
+        // Ho sakta hai user ne baad mein site connect ki ho — pending optimization ko update karo
+        await supabase.from('optimizations').update({ wordpress_connection_id: wpId }).eq('id', existingOpt.id);
       }
+
+      setOptimizationId(optId);
     }
 
     setReport({
@@ -250,7 +258,7 @@ function DashboardContent() {
       {auditAgeDays >= 30 && (
         <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200">
           Ye audit {auditAgeDays} din purana hai. AI assistants ke jawab samay ke saath badalte rehte hain, isliye naya
-          score dekhne ke liye dobara audit chalayein. Har mahine automatic monitoring chahiye to Pro plan dekhein.
+          score dekhne ke liye dobara audit chalayein. Har mahine automatic monitoring chahiye to Agency plan dekhein.
         </div>
       )}
 
@@ -332,7 +340,7 @@ function DashboardContent() {
                 <p className="text-sm text-gray-600 dark:text-stone-400 capitalize mb-2">Sentiment: {m.sentiment ?? '—'}</p>
 
                 <p className="text-xs text-gray-400 dark:text-stone-500 mb-1">Citation:</p>
-                {m.citation_url ? (
+                {m.citation_url && isSafeHttpUrl(m.citation_url) ? (
                   <a
                     href={m.citation_url}
                     target="_blank"
