@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { authHeaders } from '@/lib/authHeaders';
 import ConnectShopifyButton from '@/components/ConnectShopifyButton';
 import type { WordpressConnection, ShopifyConnection, Optimization, Audit } from '@/types';
 
@@ -91,10 +92,11 @@ export default function OptimizerPage() {
       return;
     }
 
+    const authH = await authHeaders();
     const res = await fetch('/api/wordpress/connect', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, siteUrl, wpUsername, wpAppPassword }),
+      headers: { 'Content-Type': 'application/json', ...authH },
+      body: JSON.stringify({ siteUrl, wpUsername, wpAppPassword }),
     });
 
     if (!res.ok) {
