@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { authHeaders } from '@/lib/authHeaders';
 import { useTheme } from '@/lib/ThemeProvider';
 import EditProfileSheet from '@/components/EditProfileSheet';
 import SubscribeButton from '@/components/SubscribeButton';
@@ -58,10 +59,10 @@ export default function ProfilePage() {
     const userId = userData.user?.id;
     if (!userId) return;
 
+    const authH = await authHeaders();
     const res = await fetch('/api/account/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      headers: { 'Content-Type': 'application/json', ...authH },
     });
 
     if (!res.ok) {
