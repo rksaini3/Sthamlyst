@@ -393,7 +393,7 @@ export function buildGapReportHtml(s: AuditSnapshot, agencyName?: string, lang: 
   const t = T(lang);
   const local = s.mentions.filter((m) => m.isLocal);
   const web = s.mentions.filter((m) => !m.isLocal);
-  const brandForCopy = agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly';
+  const brandForCopy = esc(agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly');
 
   const body = `
     <p class="brand-title">${esc(s.brandName)}</p>
@@ -406,7 +406,7 @@ export function buildGapReportHtml(s: AuditSnapshot, agencyName?: string, lang: 
       ${s.hasWebsite ? singleScoreBlock(t.websiteAiScore, s.websiteScore, lang) : ''}
     </div>
 
-    <div class="section-title">${t.localAiCheck(s.city)}</div>
+    <div class="section-title">${t.localAiCheck(esc(s.city))}</div>
     ${singleMentionTable(t, local, false)}
 
     ${
@@ -436,7 +436,7 @@ function changeSummary(
   fixes: FixSummary[],
   agencyName: string | undefined
 ): string {
-  const brandForCopy = agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly';
+  const brandForCopy = esc(agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly');
   const pairs: { name: string; b: number | null; a: number | null }[] = [
     { name: t.localMapsScoreLabel, b: before.localScore, a: after.localScore },
   ];
@@ -482,7 +482,7 @@ export function buildReportHtml(
   const bWeb = before.mentions.filter((m) => !m.isLocal);
   const aWeb = after.mentions.filter((m) => !m.isLocal);
   const showWebsite = before.hasWebsite || after.hasWebsite;
-  const brandForCopy = agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly';
+  const brandForCopy = esc(agencyName && agencyName.trim() ? agencyName.trim() : 'Sthamly');
 
   const fixesHtml =
     fixes.length > 0
@@ -591,6 +591,11 @@ export async function generatePdfBuffer(html: string, lang: Language = 'en'): Pr
 
   try {
     const page = await browser.newPage();
+    // Extra safety layer: agar koi user-input HTML mein kahin bhi escape hone se
+    // reh gaya ho, JS band hone se woh script chal nahi payegi (stored-XSS-in-PDF
+    // se bachaav). Hamare fonts.ready wait ki JS ki zaroorat nahi (flat delay use
+    // karte hain), isliye JS band rakhna safe hai.
+    await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: 'load' });
     // Devanagari font runtime par load hota hai (chromium.font()) — usko OS-level
     // fontconfig mein register hone aur Chromium ke text-shaping engine ko us naye
