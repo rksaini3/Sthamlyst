@@ -1,3 +1,10 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Terms & Conditions',
+  description: 'Terms and conditions for using Sthamly.',
+};
+
 export default function TermsPage() {
   return (
     <main className="min-h-screen px-6 py-12 max-w-2xl mx-auto pb-24 text-[#14162E] dark:text-stone-100 bg-white dark:bg-[#0B0C1A]">
@@ -37,7 +44,7 @@ export default function TermsPage() {
         <div>
           <h2 className="font-semibold text-lg mb-2">4. Payments and Refunds</h2>
           <p>
-            One-time fixes and subscription plans (₹999/month) are processed via
+            One-time fixes and subscription plans (₹2,999/month) are processed via
             Razorpay. Once a fix has been successfully applied to your connected
             website or store, the fee is non-refundable, as the service (code/markup
             insertion) has been delivered. If a payment succeeds but the fix fails to
